@@ -24,6 +24,15 @@ If a recipe has loops, typically the user needs to make voids or free variables.
 --]]
 matrix_solver = {}
 
+function matrix_solver.get_item_protos(item_keys)
+    local item_protos = {}
+    for i, item_key in ipairs(item_keys) do
+        local item_proto = matrix_solver.get_item(item_key)
+        item_protos[i] = item_proto
+    end
+    return item_protos
+end
+
 -- for our purposes the string "(item type id)_(item id)" is what we're calling the "item_key"
 function matrix_solver.get_item_key(item_type_name, item_name)
     local item_type_id = global.all_items.map[item_type_name]
@@ -132,6 +141,83 @@ function matrix_solver.intersect_sets(...)
     return result
 end
 
+function matrix_solver.get_matrix_solver_modal_data(player, subfactory)
+    local eliminated_items = {}
+    local free_items = {}
+    local subfactory_data = calculation.interface.get_subfactory_data(player, subfactory)
+    local subfactory_metadata = matrix_solver.get_subfactory_metadata(subfactory_data)
+    local all_items = subfactory_metadata.all_items
+    local raw_inputs = subfactory_metadata.raw_inputs
+    local byproducts = subfactory_metadata.byproducts
+    local unproduced_outputs = subfactory_metadata.unproduced_outputs
+    local produced_outputs = matrix_solver.set_diff(subfactory_metadata.desired_outputs, unproduced_outputs)
+    local free_variables = matrix_solver.union_sets(raw_inputs, byproducts, unproduced_outputs)
+    local intermediate_items = matrix_solver.set_diff(all_items, free_variables)
+    if subfactory.matrix_free_items == nil then
+        eliminated_items = intermediate_items
+    else
+        -- by default when a subfactory is updated, add any new variables to eliminated and let the user select free.
+        local free_items_list = subfactory.matrix_free_items
+        for _, free_item in ipairs(free_items_list) do
+            free_items[free_item["identifier"]] = true
+        end
+        -- make sure that any items that no longer exist are removed
+        free_items = matrix_solver.intersect_sets(free_items, intermediate_items)
+        eliminated_items = matrix_solver.set_diff(intermediate_items, free_items)
+    end
+    -- technically the produced outputs are eliminated variables but we don't want to double-count it in the UI
+    eliminated_items = matrix_solver.set_diff(eliminated_items, produced_outputs)
+    local result = {
+        recipes = subfactory_metadata.recipes,
+        ingredients = matrix_solver.set_to_ordered_list(subfactory_metadata.raw_inputs),
+        products = matrix_solver.set_to_ordered_list(produced_outputs),
+        byproducts = matrix_solver.set_to_ordered_list(subfactory_metadata.byproducts),
+        eliminated_items = matrix_solver.set_to_ordered_list(eliminated_items),
+        free_items = matrix_solver.set_to_ordered_list(free_items)
+    }
+    return result
+end
+
+function matrix_solver.get_linear_dependence_data(player, subfactory, modal_data)
+    local linear_dependence_data = {
+        linearly_dependent_recipes = {},
+        linearly_dependent_items = {},
+        potential_free_items = {}
+    }
+    local num_rows = #modal_data.ingredients + #modal_data.products + #modal_data.byproducts + #modal_data.eliminated_items + #modal_data.free_items
+    local num_cols = #modal_data.recipes + #modal_data.ingredients + #modal_data.byproducts + #modal_data.free_items
+    -- return early if these don't match since the matrix solver can crash when these are different
+    if num_rows < num_cols then
+        return linear_dependence_data
+    end
+    local subfactory_data = calculation.interface.get_subfactory_data(player, subfactory)
+    local linearly_dependent_cols = matrix_solver.run_matrix_solver(player, subfactory_data, modal_data.free_items, true)
+    for col_name, _ in pairs(linearly_dependent_cols) do
+        local col_split_str = cutil.split(col_name, "_")
+        if col_split_str[1] == "recipe" then
+            local recipe_key = col_split_str[2]
+            linear_dependence_data.linearly_dependent_recipes[recipe_key] = true
+        else -- "item"
+            local item_key = col_split_str[2].."_"..col_split_str[3]
+            linear_dependence_data.linearly_dependent_items[item_key] = true
+        end
+    end
+    -- check which eliminated items could be made free while still retaining linear independence
+    if #linearly_dependent_cols == 0 and num_cols < num_rows then
+        local eliminated_items = modal_data.eliminated_items
+        for _, eliminated_item in ipairs(eliminated_items) do
+            local curr_free_items = cutil.shallowcopy(modal_data.free_items)
+            cutil.array.insert(curr_free_items, eliminated_item)
+            linearly_dependent_cols = matrix_solver.run_matrix_solver(player, subfactory_data, curr_free_items, true)
+            if next(linearly_dependent_cols) == nil then
+                linear_dependence_data.potential_free_items[eliminated_item] = true
+            end
+        end
+    end
+    return linear_dependence_data
+end
+
+
 function matrix_solver.run_matrix_solver(player, subfactory_data, matrix_free_items, check_linear_dependence)
     local subfactory_metadata = matrix_solver.get_subfactory_metadata(subfactory_data)
     local all_items = subfactory_metadata.all_items
@@ -216,8 +302,8 @@ function matrix_solver.run_matrix_solver(player, subfactory_data, matrix_free_it
                 machine_count = line_aggregate.machine_count,
                 energy_consumption = line_aggregate.energy_consumption,
                 pollution = line_aggregate.pollution,
-                production_ratio = 1,
-                uncapped_production_ratio = 1,
+                production_ratio = line_aggregate.production_ratio,
+                uncapped_production_ratio = line_aggregate.uncapped_production_ratio,
                 Product = line_aggregate.Product,
                 Byproduct = line_aggregate.Byproduct,
                 Ingredient = line_aggregate.Ingredient,
@@ -256,6 +342,8 @@ function matrix_solver.run_matrix_solver(player, subfactory_data, matrix_free_it
         end
     end
 
+    matrix_free_item_protos = matrix_solver.get_item_protos(matrix_free_items)
+
     calculation.interface.set_subfactory_result {
         player_index = subfactory_data.player_index,
         energy_consumption = top_floor_aggregate.energy_consumption,
@@ -263,7 +351,7 @@ function matrix_solver.run_matrix_solver(player, subfactory_data, matrix_free_it
         Product = main_aggregate.Product,
         Byproduct = main_aggregate.Byproduct,
         Ingredient = main_aggregate.Ingredient,
-        matrix_free_items = matrix_free_items
+        matrix_free_items = matrix_free_item_protos
     }
 end
 
@@ -466,6 +554,8 @@ function matrix_solver.get_line_aggregate(line_data, player_index, floor_id, mac
         time_per_craft = time_per_craft + 41.25/100
     end
     local amount_per_timescale = machine_count * timescale / time_per_craft
+    line_aggregate.production_ratio = amount_per_timescale
+    line_aggregate.uncapped_production_ratio = amount_per_timescale
     for _, product in pairs(recipe_proto.products) do
         local item_key = matrix_solver.get_item_key(product.type, product.name)
         if subfactory_metadata~= nil and (subfactory_metadata.byproducts[item_key] or free_variables["item_"..item_key]) then
