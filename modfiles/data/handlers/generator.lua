@@ -75,6 +75,16 @@ local function is_barreling_recipe(proto)
     end
 end
 
+-- Determines whether this recipe is annoying or not
+-- Compatible with: Klonan's Transport/Mining Drones
+local function is_annoying_recipe(proto)
+    if string.match(proto.name, "^request%-.*") or string.match(proto.name, "^mine%-.*") then
+        return true
+    else
+        return false
+    end
+end
+
 
 -- Returns the appropriate prototype name for the given item, incorporating temperature
 local function format_temperature_name(item, name)
@@ -132,6 +142,40 @@ local function generate_formatted_item(base_item, type)
     }
 end
 
+-- Combines items that occur more than once into one entry
+local function combine_identical_items(item_list)
+    local touched_items = {item = {}, fluid = {}, entity = {}}
+    for index, item in pairs(item_list) do
+        if item.temperature == nil then  -- don't care to deal with temperature crap
+            local touched_item = touched_items[item.type][item.name]
+            if touched_item ~= nil then
+                touched_item.amount = touched_item.amount + item.amount
+                touched_item.proddable_amount = touched_item.proddable_amount + item.proddable_amount
+
+                -- Using the table.remove function to preserve array-format
+                table.remove(item_list, index)
+            else
+                touched_items[item.type][item.name] = item
+            end
+        end
+    end
+end
+
+-- Determines the type_count for the given item list
+local function determine_item_counts(item_list)
+    local type_counts = {items = 0, fluids = 0}
+
+    for _, item in pairs(item_list) do
+        if item.type == "fluid" then
+            type_counts.fluids = type_counts.fluids + 1
+        else  -- "item" and "entity"
+            type_counts.items = type_counts.items + 1
+        end
+    end
+
+    return type_counts
+end
+
 -- Determines the net amount that the given recipe consumes of the given item (might be negative)
 local function determine_net_ingredient_amount(recipe_proto, item)
     local net_amount = 0
@@ -184,14 +228,16 @@ end
 -- Formats the products/ingredients of a recipe for more convenient use
 local function format_recipe_products_and_ingredients(recipe_proto)
     local ingredients = {}
-    for _, base_ingredient in ipairs(recipe_proto.ingredients) do
+    for _, base_ingredient in pairs(recipe_proto.ingredients) do
         local formatted_ingredient = generate_formatted_item(base_ingredient, "ingredient")
         table.insert(ingredients, formatted_ingredient)
     end
+    --combine_identical_items(ingredients)  -- not needed here (probably)
+    recipe_proto.type_counts.ingredients = determine_item_counts(ingredients)
     recipe_proto.ingredients = ingredients
 
     local products = {}
-    for _, base_product in ipairs(recipe_proto.products) do
+    for _, base_product in pairs(recipe_proto.products) do
         local formatted_product = generate_formatted_item(base_product, "product")
         table.insert(products, formatted_product)
 
@@ -202,15 +248,17 @@ local function format_recipe_products_and_ingredients(recipe_proto)
             recipe_proto.main_product = formatted_product
         end
     end
+    combine_identical_items(products)
+    recipe_proto.type_counts.products = determine_item_counts(products)
     recipe_proto.products = products
     
     -- Determine the net amount after the actual amounts have been calculated
-    for _, formatted_ingredient in ipairs(recipe_proto.ingredients) do
+    for _, formatted_ingredient in pairs(recipe_proto.ingredients) do
         formatted_ingredient.net_amount = determine_net_ingredient_amount(recipe_proto, formatted_ingredient)
     end
 
     -- Determine the net amount after the actual amounts have been calculated
-    for _, formatted_product in ipairs(recipe_proto.products) do
+    for _, formatted_product in pairs(recipe_proto.products) do
         formatted_product.net_amount = determine_net_product_amount(recipe_proto, formatted_product)
     end
 end
@@ -316,6 +364,7 @@ function generator.all_recipes()
             hidden = false,
             group = {name="intermediate-products", localised_name={"item-group-name.intermediate-products"},
               order="c", valid=true},
+            type_counts = {},
             use_limitations = false,
             custom = true
         }
@@ -326,7 +375,8 @@ function generator.all_recipes()
     for recipe_name, proto in pairs(game.recipe_prototypes) do
         -- Avoid any recipes that have no machine to produce them or are unresearchable
         local category_id = new.all_machines.map[proto.category]
-        if category_id ~= nil and (proto.enabled or researchable_recipes[recipe_name]) then
+        if category_id ~= nil and (proto.enabled or researchable_recipes[recipe_name])
+          and not is_annoying_recipe(proto) then
             local recipe = {
                 name = proto.name,
                 category = proto.category,
@@ -337,6 +387,7 @@ function generator.all_recipes()
                 ingredients = proto.ingredients,
                 products = proto.products,
                 main_product = proto.main_product,
+                type_counts = {},  -- filled out by format_* below
                 recycling = is_recycling_recipe(proto),
                 barreling = is_barreling_recipe(proto),
                 use_limitations = true,
@@ -346,7 +397,7 @@ function generator.all_recipes()
                 group = generate_group_table(proto.group),
                 subgroup = generate_group_table(proto.subgroup)
             }
-            
+
             format_recipe_products_and_ingredients(recipe)
             --add_recipe_tooltip(recipe)
             insert_proto(all_recipes, "recipes", recipe, true)
@@ -386,7 +437,6 @@ function generator.all_recipes()
                         name = proto.mineable_properties.required_fluid,
                         amount = proto.mineable_properties.fluid_amount
                     })
-                    if recipe.category == "basic-solid" then recipe.category = "complex-solid" end
                 end
 
                 format_recipe_products_and_ingredients(recipe)
@@ -467,29 +517,32 @@ function generator.all_recipes()
     end
     
     -- Adds a convenient space science recipe
-    local rocket_recipe = {
-        name = "fp-space-science-pack",
-        localised_name = {"item-name.space-science-pack"},  -- official locale
-        sprite = "item/space-science-pack",
-        category = "rocket-building",
-        hidden = false,
-        energy = 0,
-        emissions_multiplier = 1,
-        group = {name="intermediate-products", localised_name={"item-group-name.intermediate-products"},
-          order="c", valid=true},
-        subgroup = {name="science-pack", order="g", valid=true},
-        order = "x[fp-space-science-pack]",
-        ingredients = {
-            {type="item", name="rocket-part", amount=100},
-            {type="item", name="satellite", amount=1}
-        },
-        products = {{type="item", name="space-science-pack", amount=1000}},
-        custom = true
-    }
+    if game["item_prototypes"]["space-science-pack"] then
+        local rocket_recipe = {
+            name = "fp-space-science-pack",
+            localised_name = {"item-name.space-science-pack"},  -- official locale
+            sprite = "item/space-science-pack",
+            category = "rocket-building",
+            hidden = false,
+            energy = 0,
+            emissions_multiplier = 1,
+            group = {name="intermediate-products", localised_name={"item-group-name.intermediate-products"},
+            order="c", valid=true},
+            subgroup = {name="science-pack", order="g", valid=true},
+            order = "x[fp-space-science-pack]",
+            ingredients = {
+                {type="item", name="rocket-part", amount=100},
+                {type="item", name="satellite", amount=1}
+            },
+            products = {{type="item", name="space-science-pack", amount=1000}},
+            type_counts = {},  -- filled out by format_* below
+            custom = true
+        }
 
-    format_recipe_products_and_ingredients(rocket_recipe)
-    add_recipe_tooltip(rocket_recipe)
-    insert_proto(all_recipes, "recipes", rocket_recipe, true)
+        format_recipe_products_and_ingredients(rocket_recipe)
+        add_recipe_tooltip(rocket_recipe)
+        insert_proto(all_recipes, "recipes", rocket_recipe, true)
+    end
     
     return all_recipes
 end
@@ -573,22 +626,21 @@ function generator.all_items()
             if type == "item" then hidden = proto.has_flag("hidden")
             elseif type == "fluid" then hidden = proto.hidden end
             
-            if not hidden or item_name == "rocket-part" then  -- exclude hidden items
-                local item = {
-                    name = item_name,
-                    type = type,
-                    sprite = type .. "/" .. proto.name,
-                    localised_name = localised_name,
-                    ingredient_only = not item_details.is_product,
-                    temperature = item_details.temperature,
-                    order = order,
-                    group = generate_group_table(proto.group),
-                    subgroup = generate_group_table(proto.subgroup)
-                }
+            local item = {
+                name = item_name,
+                type = type,
+                sprite = type .. "/" .. proto.name,
+                localised_name = localised_name,
+                hidden = hidden,
+                ingredient_only = not item_details.is_product,
+                temperature = item_details.temperature,
+                order = order,
+                group = generate_group_table(proto.group),
+                subgroup = generate_group_table(proto.subgroup)
+            }
 
-                add_item_tooltip(item)
-                deep_insert_proto(all_items, "types", type, "items", item, true)
-            end
+            add_item_tooltip(item)
+            deep_insert_proto(all_items, "types", type, "items", item, true)
         end
     end
     
@@ -671,6 +723,7 @@ function generator.all_machines()
         local speed = proto.crafting_categories and proto.crafting_speed or proto.mining_speed
         local energy_usage = proto.energy_usage or proto.max_energy_usage or 0
 
+        -- Determine data related to the energy source
         local burner, emissions = nil, 0  -- emissions remain at 0 if no energy source is present
         if proto.burner_prototype then
             burner = {
@@ -682,12 +735,25 @@ function generator.all_machines()
             emissions = proto.electric_energy_source_prototype.emissions
         end
 
+        -- Determine fluid input/output channels
+        local fluid_channels = {input = 0, output = 0}
+        if proto.fluid_energy_source_prototype then fluid_channels.input = fluid_channels.input - 1 end
+
+        for _, fluidbox in pairs(proto.fluidbox_prototypes) do
+            if fluidbox.production_type == "output" then
+                fluid_channels.output = fluid_channels.output + 1
+            else  -- "input" and "input-output"
+                fluid_channels.input = fluid_channels.input + 1
+            end
+        end
+        
         local machine = {
             name = proto.name,
             category = category,
             localised_name = proto.localised_name,
             sprite = "entity/" .. proto.name,
             ingredient_limit = (proto.ingredient_count or 255),
+            fluid_channels = fluid_channels,
             speed = speed,
             energy_usage = energy_usage,
             emissions = emissions,
@@ -703,7 +769,7 @@ function generator.all_machines()
     for _, proto in pairs(game.entity_prototypes) do
         if not proto.has_flag("hidden") and proto.crafting_categories and proto.energy_usage ~= nil then
             for category, enabled in pairs(proto.crafting_categories) do
-                if enabled then 
+                if enabled then
                     local machine = generate_category_entry(category, proto)
                     deep_insert_proto(all_machines, "categories", category, "machines", machine)
                 end
@@ -712,20 +778,11 @@ function generator.all_machines()
         -- Add mining machines
         elseif proto.resource_categories then
             for category, enabled in pairs(proto.resource_categories) do
-                -- Only supports solid mining recipes for now (no oil etc.)
+                -- Only supports solid mining recipes for now (no oil, etc.)
                 if enabled and category ~= "basic-fluid" then
                     local machine = generate_category_entry(category, proto)
                     machine.mining = true
                     deep_insert_proto(all_machines, "categories", category, "machines", machine)
-
-                    -- Add separate category for mining with fluids that avoids the burner-miner
-                    if category == "basic-solid" then
-                        if not proto.burner_prototype then
-                            local machine = generate_category_entry("complex-solid", proto)
-                            machine.mining = true
-                            deep_insert_proto(all_machines, "categories", "complex-solid", "machines", machine)
-                        end
-                    end
                 end
             end
         
@@ -824,7 +881,7 @@ function generator.all_fuels()
         -- Only use fuels that were actually detected/accepted to be items,
         -- and have non-zero and non-infinite fuel values
         if proto.fuel_value and proto.fuel_category == "chemical" and items.map[proto.name]
-          and proto.fuel_value ~= 0 and proto.fuel_value ~= math.huge then
+          and proto.fuel_value ~= 0 and proto.fuel_value < 1e+21 then
             insert_proto(all_fuels, "fuels", {
                 name = proto.name,
                 type = proto.type,

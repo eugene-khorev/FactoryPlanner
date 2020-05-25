@@ -92,7 +92,7 @@ function close_beacon_dialog(flow_modal_dialog, action, data)
         -- It makes no difference if this is an edit or not, the beacon gets replaced anyway
         local new_beacon = Beacon.init_by_protos(ui_state.modal_data.selected_beacon, tonumber(data.beacon_amount),
           ui_state.modal_data.selected_module, tonumber(data.module_amount), tonumber(data.beacon_total))
-        Line.set_beacon(line, new_beacon)   
+        Line.set_beacon(line, new_beacon)
 
     elseif action == "delete" then  -- only possible on edit
         Line.remove_beacon(line)
@@ -239,10 +239,16 @@ function create_prototype_line(flow_modal_dialog, type, line, object)
         decimal = true
         
         if object == nil then
-            local preferred_beacon = get_preferences(player).preferred_beacon
+            local preferences = get_preferences(player)
+
+            -- Set the default beacon
+            local preferred_beacon = preferences.preferred_beacon
             modal_data.selected_beacon = preferred_beacon
             sprite = preferred_beacon.sprite
             tooltip = preferred_beacon.localised_name
+
+            -- Use the default beacon count if it's set
+            amount = preferences.mb_defaults.beacon_count
         end
     end
 
@@ -347,7 +353,7 @@ end
 function handle_module_beacon_picker_click(player, button)
     local ui_state = get_ui_state(player)
     local modal_data = ui_state.modal_data
-    local flow_modal_dialog = player.gui.screen["fp_frame_modal_dialog"]["flow_modal_dialog"]
+    local flow_modal_dialog = ui_util.find_modal_dialog(player)["flow_modal_dialog"]
     
     local split_name = cutil.split(button.name, "_")
     if split_name[3] == "module" then
@@ -430,10 +436,11 @@ end
 
 -- Sets the amount of modules in the dialog to exactly fill up the machine
 function max_module_amount(player)
-    local flow_modal_dialog = player.gui.screen["fp_frame_modal_dialog"]["flow_modal_dialog"]
+    local flow_modal_dialog = ui_util.find_modal_dialog(player)["flow_modal_dialog"]
     flow_modal_dialog["flow_module_bar"]["textfield_module_amount"].text = get_modal_data(player).empty_slots
     exit_modal_dialog(player, "submit", {})
 end
+
 
 -- Handles entering the beacon-selection mode
 function enter_beacon_selection(player)
@@ -443,7 +450,7 @@ end
 
 -- Leaves the beacon-selection mode, applying the results if available
 function leave_beacon_selection(player, beacon_amount)
-    local textfield_beacon_total = player.gui.screen["fp_frame_modal_dialog"]["flow_modal_dialog"]
+    local textfield_beacon_total = ui_util.find_modal_dialog(player)["flow_modal_dialog"]
       ["flow_beacon_total"]["textfield_beacon_total"]
     textfield_beacon_total.text = beacon_amount or textfield_beacon_total.text
     if beacon_amount then textfield_beacon_total.focus() end

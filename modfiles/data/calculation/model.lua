@@ -108,6 +108,12 @@ function model.update_floor(floor_data, aggregate)
         if desired_products[product.type][product.name] == nil then
             structures.aggregate.add(aggregate, "Ingredient", product)
             structures.aggregate.subtract(aggregate, "Product", product)
+        else
+            -- Add top level products that are also ingredients to the ingredients
+            local negative_amount = product.amount - desired_products[product.type][product.name]
+            if negative_amount > 0 then
+                structures.aggregate.add(aggregate, "Ingredient", product, negative_amount)
+            end
         end
     end
 end
@@ -264,11 +270,7 @@ function model.update_line(line_data, aggregate)
         
         local fuel = {type=fuel_proto.type, name=fuel_proto.name, amount=fuel_amount}
         structures.class.add(Fuel, fuel)
-        structures.aggregate.add(aggregate, "Fuel", fuel)
-
-        -- This is to work around the fuel not being detected as a possible product
         structures.aggregate.add(aggregate, "Product", fuel)
-        structures.aggregate.subtract(aggregate, "Ingredient", fuel)
 
         energy_consumption = 0  -- set electrical consumption to 0 when fuel is used
     end

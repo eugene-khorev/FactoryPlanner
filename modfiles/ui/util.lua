@@ -116,7 +116,7 @@ function ui_util.determine_item_amount_and_appendage(player_table, view_name, it
         appendage = (show_belts) and ((number == 1) and {"fp.belt"} or {"fp.belts"}) or
           ((number == 1) and {"fp.lane"} or {"fp.lanes"})
 
-    elseif view_name == "items_per_second_per_machine" and item_type ~= "fluid" then
+    elseif view_name == "items_per_second_per_machine" then
         -- Show items/s/1 (machine) if it's a top level item
         local number_of_machines = (machine_count ~= nil) and machine_count or 1
         number = amount / timescale / number_of_machines
@@ -192,7 +192,7 @@ function ui_util.format_number(number, precision)
     if number == nil then return nil end
     
     -- To avoid scientific notation, chop off the decimals points for big numbers
-    if (number / (10 ^ precision)) > 1 then
+    if (number / (10 ^ precision)) >= 1 then
         return ("%d"):format(number)
     else
         -- Set very small numbers to 0
@@ -216,17 +216,19 @@ end
 
 -- Returns string representing the given power 
 function ui_util.format_SI_value(value, unit, precision)
-    local scale = {"", "k", "M", "G", "T", "P", "E", "Z", "Y"}
+    local prefixes = {"", "kilo", "mega", "giga", "tera", "peta", "exa", "zetta", "yotta"}
     local units = {
         ["W"] = {"fp.unit_watt"},
         ["J"] = {"fp.unit_joule"},
         ["P/s"] = {"", {"fp.unit_pollution"}, "/", {"fp.unit_second"}}
     }
 
-    value = value or 0
+    local sign = (value >= 0) and "" or "-"
+    value = math.abs(value) or 0
+    
     local scale_counter = 0
     -- Determine unit of the energy consumption, while keeping the result above 1 (ie no 0.1kW, but 100W)
-    while scale_counter < #scale and value > (1000 ^ (scale_counter + 1)) do
+    while scale_counter < #prefixes and value > (1000 ^ (scale_counter + 1)) do
         scale_counter = scale_counter + 1
     end
 
@@ -236,7 +238,8 @@ function ui_util.format_SI_value(value, unit, precision)
     end
 
     value = value / (1000 ^ scale_counter)
-    return {"", ui_util.format_number(value, precision) .. " " .. scale[scale_counter + 1], units[unit]}
+    local prefix = (scale_counter == 0) and "" or {"fp.prefix_" .. prefixes[scale_counter + 1]}
+    return {"", sign .. ui_util.format_number(value, precision) .. " ", prefix, units[unit]}
 end
 
 
@@ -335,6 +338,17 @@ function ui_util.execute_alt_action(player, action_type, data)
     end
 end
 
+-- Tries to find the currently open modal dialog and returns it
+function ui_util.find_modal_dialog(player)
+    local modal_dialog_type = get_ui_state(player).modal_dialog_type
+    if modal_dialog_type == nil then
+        return nil
+    else
+        local candidate_frame_name = "fp_frame_modal_dialog_" .. modal_dialog_type
+        return player.gui.screen[candidate_frame_name] or player.gui.screen["fp_frame_modal_dialog"]
+    end
+end
+
 
 -- **** Context ****
 -- Creates a blank context referencing which part of the Factory is currently displayed
@@ -394,10 +408,10 @@ end
 
 -- Returns a tooltip containing the attributes of the given machine prototype
 function ui_util.attributes.machine(machine)
-    local pollution = machine.energy_usage * machine.emissions * 60
+    local energy_usage = machine.energy_usage * 60
     return {"", {"fp.crafting_speed"}, ": " .. ui_util.format_number(machine.speed, 4) .. "\n",
-           {"fp.energy_consumption"}, ": ", ui_util.format_SI_value(machine.energy_usage, "W", 3), "\n",
-           {"fp.cpollution"}, ": ", ui_util.format_SI_value(pollution, "P/s", 3), "\n",
+           {"fp.energy_consumption"}, ": ", ui_util.format_SI_value(energy_usage, "W", 3), "\n",
+           {"fp.cpollution"}, ": ", ui_util.format_SI_value(energy_usage * machine.emissions, "P/s", 3), "\n",
            {"fp.module_slots"}, ": " .. machine.module_limit}
 end
 
@@ -459,6 +473,8 @@ end
 function ui_util.message.refresh(player)
     local main_dialog = player.gui.screen["fp_frame_main_dialog"]
     if main_dialog == nil then return end
+    local flow_titlebar = main_dialog["flow_titlebar"]
+    if flow_titlebar == nil then return end
 
     -- The message types are ordered by priority
     local types = {
@@ -491,7 +507,7 @@ function ui_util.message.refresh(player)
         if message.lifetime <= 0 then table.remove(ui_state.message_queue, index) end
     end
     
-    local label_hint = main_dialog["flow_titlebar"]["label_titlebar_hint"]
+    local label_hint = flow_titlebar["label_titlebar_hint"]
     label_hint.caption = new_message
     ui_util.set_label_color(label_hint, new_color)
 end

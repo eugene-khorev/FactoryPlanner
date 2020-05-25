@@ -52,6 +52,7 @@ function handle_line_recipe_click(player, line_id, click, direction, action, alt
                 if ui_state.current_activity == "deleting_line" then
                     Floor.remove(floor, line)
                     ui_state.current_activity = nil
+                    ui_state.context.line = nil
                     calculation.update(player, subfactory, true)
                 else
                     ui_state.current_activity = "deleting_line"
@@ -91,7 +92,7 @@ end
 
 
 -- Handles the machine changing process
-function handle_machine_change(player, line_id, machine_id, click, direction)
+function handle_machine_change(player, line_id, machine_id, click, direction, alt)
     if ui_util.check_archive_status(player) then return end
 
     local ui_state = get_ui_state(player)
@@ -106,11 +107,28 @@ function handle_machine_change(player, line_id, machine_id, click, direction)
             data_util.machine.change(player, line, nil, direction)
             calculation.update(player, subfactory, true)
 
+        -- Reset this machine to its default if ALT was pressed
+        elseif alt then
+            data_util.machine.change(player, line, nil, nil)
+            line.machine.limit = nil
+            line.machine.hard_limit = false
+            calculation.update(player, subfactory, true)
+
         -- Display all the options for this machine category
-        elseif click == "left" then            
+        elseif click == "left" then
+            -- Determine how many machines are applicable to this recipe
+            -- This detection will run twice, which might be worth optimizing at some point
+            local recipe_proto = line.recipe.proto
+            local applicable_machine_count = 0
+            for _, machine_proto in pairs(line.machine.category.machines) do
+                if data_util.machine.is_applicable(machine_proto, recipe_proto) then
+                    applicable_machine_count = applicable_machine_count + 1
+                end
+            end
+
             -- Changing machines only makes sense if there are more than one in it's category
-            if #line.machine.category.machines > 1 then
-                if #line.machine.category.machines < 5 then  -- up to 4 machines, no picker is needed
+            if applicable_machine_count > 1 then
+                if applicable_machine_count < 5 then  -- up to 4 machines, no picker is needed
                     ui_state.current_activity = "changing_machine"
                     ui_state.context.line = line  -- won't be reset after use, but that doesn't matter
                     refresh_current_activity(player)
@@ -119,7 +137,7 @@ function handle_machine_change(player, line_id, machine_id, click, direction)
                     local modal_data = {
                         reciever_name = "machine",
                         title = {"fp.machine"},
-                        text = {"", {"fp.chooser_machine"}, " '", line.recipe.proto.localised_name, "':"},
+                        text = {"", {"fp.chooser_machine"}, " '", recipe_proto.localised_name, "':"},
                         object = line.machine
                     }
                     
@@ -161,12 +179,6 @@ function handle_machine_change(player, line_id, machine_id, click, direction)
         -- Accept the user selection of new machine for this (assembly) line
         if click == "left" then
             local category_id = line.machine.category.id
-
-            if direction == "positive" then
-                -- Set preferred machine if button is shift-clicked
-                data_util.machine.set_default(player, category_id, machine_id)
-            end
-
             local new_machine = global.all_machines.categories[category_id].machines[machine_id]
             data_util.machine.change(player, line, new_machine, nil)
             ui_state.current_activity = nil
@@ -181,7 +193,7 @@ function generate_chooser_machine_buttons(player)
     local line = ui_state.context.line
 
     for machine_id, machine in ipairs(line.machine.category.machines) do
-        if data_util.machine.is_applicable(machine, line.recipe) then
+        if data_util.machine.is_applicable(machine, line.recipe.proto) then
             local button = generate_blank_chooser_button(player, machine_id)
             -- The actual button is setup by the method shared by non-chooser machine buttons
             setup_machine_choice_button(player, button, machine, ui_state.modal_data.object.proto.id, 36)
@@ -190,15 +202,9 @@ function generate_chooser_machine_buttons(player)
 end
 
 -- Recieves the result of the machine choice and applies it
-function apply_machine_choice(player, machine_id, modifier_keys)
+function apply_machine_choice(player, machine_id)
     local context = get_context(player)
     local category_id, machine_id = context.line.machine.category.id, tonumber(machine_id)
-
-    if modifier_keys.shift then
-        -- Set preferred machine if button is shift-clicked
-        data_util.machine.set_default(player, category_id, machine_id)
-    end
-
     local machine = global.all_machines.categories[category_id].machines[machine_id]
     data_util.machine.change(player, context.line, machine, nil)
     calculation.update(player, context.subfactory, true)
@@ -506,9 +512,6 @@ function apply_fuel_choice(player, new_fuel_id)
     
     if line.subfloor == nil then  -- subfloor-less lines are always limited to 1 fuel type
         Line.get_by_gui_position(line, "Fuel", 1).proto = new_fuel
-        if line.id == 1 and line.parent and line.parent.level > 1 then
-            Line.get_by_gui_position(line.parent.origin_line, "Fuel", 1).proto = new_fuel
-        end
     else
         apply_fuel_to_floor(line.subfloor)
     end

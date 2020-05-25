@@ -185,7 +185,7 @@ end
 
 -- Filters the current recipes according to the filters that have been set
 function apply_recipe_filter(player)
-    local flow_modal_dialog = player.gui.screen["fp_frame_modal_dialog"]["flow_modal_dialog"]
+    local flow_modal_dialog = ui_util.find_modal_dialog(player)["flow_modal_dialog"]
     local table_recipes = flow_modal_dialog["scroll-pane_recipes"]["table_recipes"]
     
     local force_recipes = player.force.recipes
@@ -207,13 +207,13 @@ function apply_recipe_filter(player)
             local visible = (recipe.custom or ((disabled or enabled) and (hidden or not recipe.hidden)))
             
             button.visible = visible
-            any_group_recipe_visible = visible or false
+            any_group_recipe_visible = visible or any_group_recipe_visible
         end
         
         -- Hide the whole table row if no recipe in it is visible
         table_recipes["sprite_group_" .. group_name].visible = any_group_recipe_visible
         table_recipes["table_recipe_group_" .. group_name].visible = any_group_recipe_visible
-        any_recipe_visible = any_group_recipe_visible or false
+        any_recipe_visible = any_group_recipe_visible or any_recipe_visible
 
         local additional_height = math.max(73, (math.ceil(table_size(recipe_list) / recipes_per_row) * 38))
         desired_scroll_pane_height = desired_scroll_pane_height + additional_height
@@ -256,8 +256,26 @@ function attempt_adding_recipe_line(player, recipe_id)
         
         local message = ui_state.modal_data.message
         if message ~= nil then ui_util.message.enqueue(player, message.text, message.type, 2) end
+        
+        local preferences = get_preferences(player)
+        local mb_defaults = preferences.mb_defaults
+        -- Add default machine modules, if desired by the user
+        local machine_module = mb_defaults.module
+        if machine_module and Line.get_module_characteristics(line, machine_module).compatible then
+            local new_module = Module.init_by_proto(machine_module, line.machine.proto.module_limit)
+            Line.add(line, new_module)
+        end
 
-        exit_modal_dialog(player, "cancel", {})
+        -- Add default beacon modules, if desired by the user
+        local beacon_module, beacon_count = mb_defaults.beacon, mb_defaults.beacon_count
+        local beacon_proto = preferences.preferred_beacon  -- this will always exist
+        if beacon_module ~= nil and beacon_count ~= nil and 
+          Line.get_beacon_module_characteristics(line, beacon_proto, beacon_module).compatible then
+            local new_beacon = Beacon.init_by_protos(beacon_proto, beacon_count, beacon_module,
+              beacon_proto.module_limit, nil)
+            Line.set_beacon(line, new_beacon) 
+        end
+        
         calculation.update(player, ui_state.context.subfactory, true)
     end
 end

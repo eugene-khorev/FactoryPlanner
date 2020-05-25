@@ -152,7 +152,8 @@ function _refresh_item_table(player, item_table, class, items, display_mode)
                   .. " ", appendage}
                 button_number = (round_belts) and math.ceil(display_amount) or display_amount
             end
-            local tooltip = {"", item.proto.localised_name, number_line, tutorial_tooltip}
+            local indication = (item.proto.type == "entity") and {"fp.indication", {"fp.raw_ore"}} or ""
+            local tooltip = {"", item.proto.localised_name, indication, number_line, tutorial_tooltip}
 
             local button = item_table.add{type="sprite-button", name="fp_sprite-button_subpane_" .. ui_name .. "_"
               .. item.id, sprite=item.proto.sprite, number=button_number, tooltip=tooltip,
@@ -226,6 +227,7 @@ function handle_product_element_click(player, product_id, click, direction, acti
                 -- Remove useless recipes after a product has been deleted
                 calculation.update(player, subfactory, false)
                 Subfactory.remove_useless_lines(subfactory)
+                ui_util.context.set_floor(player, Subfactory.get(subfactory, "Floor", 1))
 
                 calculation.update(player, subfactory, true)
             end

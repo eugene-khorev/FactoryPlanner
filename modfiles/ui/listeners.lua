@@ -70,7 +70,7 @@ end)
 script.on_event("fp_focus_searchfield", function(event)
     local player = game.get_player(event.player_index)
     if get_ui_state(player).modal_dialog_type == "product" then
-        player.gui.screen["fp_frame_modal_dialog_product"]["flow_modal_dialog"]["flow_item_picker"]
+        ui_util.find_modal_dialog(player)["flow_modal_dialog"]["flow_item_picker"]
           ["table_search_bar"]["fp_textfield_item_picker_search_bar"].focus()
     end
 end)
@@ -200,8 +200,11 @@ script.on_event(defines.events.on_gui_text_changed, function(event)
                 ui_util.set_nth_tick_refresh(player, event.element)
                 return
             end
-
             item_picker.handle_searchfield_change(event.element)
+
+        -- Persists default beacon count changes
+        elseif element_name == "fp_textfield_default_beacon_count" then
+            handle_default_beacon_count_change(player, event.element)
 
         -- Persists notes changes
         elseif element_name == "fp_text-box_notes" then
@@ -231,6 +234,16 @@ script.on_event(defines.events.on_gui_selection_state_changed, function(event)
     if event.element.name == "fp_drop_down_alt_action" then
         local selected_index = event.element.selected_index
         handle_alt_action_change(player, selected_index)
+    end
+end)
+
+-- Fires on any change to a choose_elem_button
+script.on_event(defines.events.on_gui_elem_changed, function(event)
+    local player = game.get_player(event.player_index)
+
+    -- Persists changes to the module/beacon defaults
+    if string.find(event.element.name, "^fp_choose%-elem%-button_default_[a-z]+$") then
+        handle_mb_defaults_change(player, event.element)
     end
 end)
 
@@ -398,7 +411,7 @@ script.on_event(defines.events.on_gui_click, function(event)
         -- Reacts to the machine button on an (assembly) line being pressed
         elseif string.find(element_name, "^fp_sprite%-button_line_machine_%d+$") then
             local line_id = tonumber(string.match(element_name, "%d+"))
-            handle_machine_change(player, line_id, nil, click, direction)
+            handle_machine_change(player, line_id, nil, click, direction, event.alt)
             
         -- Changes the machine of the selected (assembly) line
         elseif string.find(element_name, "^fp_sprite%-button_line_machine_%d+_%d+$") then

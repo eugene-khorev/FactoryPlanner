@@ -32,8 +32,10 @@ function player_gui_reset(player)
         mod_gui.get_button_flow(player)["fp_button_toggle_interface"],
         screen["fp_frame_main_dialog"],
         screen["fp_frame_modal_dialog"],
+        screen["fp_frame_modal_dialog_product"],  -- TODO remove when this dialog is added back as a cached one
         unpack(cached_dialogs)
     }
+    
     for _, gui in pairs(guis) do
         if type(gui) == "string" then gui = screen[gui] end
         if gui ~= nil and gui.valid then gui.destroy() end
@@ -54,6 +56,14 @@ function is_main_dialog_in_focus(player)
       and get_ui_state(player).modal_dialog_type == nil)
 end
 
+-- Sets the game.paused-state appropriately
+function set_pause_state(player, main_dialog)
+    if get_settings(player).pause_on_interface and not game.is_multiplayer() and 
+      player.controller_type ~= defines.controllers.editor then
+        game.tick_paused = main_dialog.visible  -- only pause when the main dialog is open
+    end
+end
+
 
 -- Toggles the main dialog open and closed
 function toggle_main_dialog(player)
@@ -62,13 +72,9 @@ function toggle_main_dialog(player)
         local main_dialog = player.gui.screen["fp_frame_main_dialog"]
         if main_dialog ~= nil then main_dialog.visible = not main_dialog.visible end
         main_dialog = refresh_main_dialog(player)
-        player.opened = main_dialog.visible and main_dialog or nil
 
-        -- Handle the pause_on_open_interface option
-        if get_settings(player).pause_on_interface and not game.is_multiplayer() and 
-          player.controller_type ~= defines.controllers.editor then
-            game.tick_paused = main_dialog.visible  -- only pause when the main dialog is open
-        end
+        player.opened = main_dialog.visible and main_dialog or nil
+        set_pause_state(player, main_dialog)
     end
 end
 
@@ -88,16 +94,20 @@ end
 
 -- Sets selection mode and configures the related GUI's
 function set_selection_mode(player, state)
-    get_flags(player).selection_mode = state
-    player.gui.screen["fp_frame_main_dialog"].visible = not state
+    local ui_state = get_ui_state(player)
 
-    local frame_modal_dialog = player.gui.screen["fp_frame_modal_dialog"]
-    frame_modal_dialog.ignored_by_interaction = state
-    if state == true then
-        frame_modal_dialog.location = {25, 50}
-    else
-        frame_modal_dialog.force_auto_center()
-        player.opened = frame_modal_dialog
+    if ui_state.modal_dialog_type == "beacon" then
+        ui_state.flags.selection_mode = state
+        player.gui.screen["fp_frame_main_dialog"].visible = not state
+        
+        local frame_modal_dialog = ui_util.find_modal_dialog(player)
+        frame_modal_dialog.ignored_by_interaction = state
+        if state == true then
+            frame_modal_dialog.location = {25, 50}
+        else
+            frame_modal_dialog.force_auto_center()
+            player.opened = frame_modal_dialog
+        end
     end
 end
 
@@ -115,7 +125,12 @@ function refresh_main_dialog(player, full_refresh)
         ui_util.properly_center_frame(player, main_dialog, dimensions.width, dimensions.height)
         main_dialog.style.minimal_width = dimensions.width
         main_dialog.style.height = dimensions.height
-        main_dialog.visible = (not full_refresh) or false  -- hide dialog on a full refresh
+
+        set_pause_state(player, main_dialog)  -- Adjust the paused-state accordingly
+        local ui_state = get_ui_state(player)
+        if ui_state.modal_dialog_type == "beacon" and ui_state.flags.selection_mode then
+            leave_beacon_selection(player, 0)  -- Leave the beacon selection mode if it is active
+        end
 
         add_titlebar_to(main_dialog)
         add_actionbar_to(main_dialog)

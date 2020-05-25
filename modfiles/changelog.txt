@@ -1,4 +1,86 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.00.00
+Date: 00. 00. 0000
+  Features:
+    - Added a preference where you can specify a default module for both machines and beacons, as well as a default beacon count. These preferences cause newly created recipe lines to automatically be maxed out with the specified modules and beacons. This makes it less work to create a fully beacon-ed setup. This functionality is pretty bare-bones and not very smart, but it's a good start.
+  Bugfixes:
+    - Fixed a crash when loading a map that used certain kinds of recipes
+    - Fixed the rocket-part item not being visible anymore in the product picker
+
+---------------------------------------------------------------------------------------------------
+Version: 0.18.17
+Date: 23. 05. 2020
+  Bugfixes:
+    - Fixed a crash in certain modded situations
+
+---------------------------------------------------------------------------------------------------
+Version: 0.18.16
+Date: 22. 05. 2020
+  Changes:
+    - The 'items/s/machine'-view now also works for fluids
+    - The interface now remains open when alt-tabbing or resizing the Factorio window
+    - Now allows SI prefixes to be localised
+  Bugfixes:
+    - Fixed how the mod detects which machines can produce certain recipes in the proper way
+    - Fixed that setting hard limits on rocket silo recipes would not work correctly
+    - Fixed that migration caused any subfactory that contained fuels to always need repair
+    - Fixed that desired products that are also ingredients didn't show up as such at the top level
+    - Fixed that fuel would sometimes show up on the top floor as an ingredient when it's already being produced on a subfloor
+    - Fixed that recipes with certain complicated product definitions would not be useable
+
+---------------------------------------------------------------------------------------------------
+Version: 0.18.15
+Date: 20. 05. 2020
+  Bugfixes:
+    - Fixed a bug where the recipe picker didn't show the appropriate recipes in some cases
+    - Fixed that adding recipes which used hidden items would crash
+    - Fixed that a recipe would sometimes show as being able to use fluids as ingredients/products, while actually not being able to do so
+    - Fixed a crash when alt-tabbing or changing resolution while a popup dialog was open
+    - (Probably) fixed a crash when the space science-item is being removed by another mod
+
+---------------------------------------------------------------------------------------------------
+Version: 0.18.14
+Date: 16. 05. 2020
+  Bugfixes:
+    - Fixed that the game could be paused unexpectedly
+    - Fixed a crash when selecting a product from the item picker
+    - Fixed a crash when opening certain dialogs
+
+---------------------------------------------------------------------------------------------------
+Version: 0.18.13
+Date: 16. 05. 2020
+  Features:
+    - You can now alt-click the machine of any recipe to reset it to default, removing any configured limits
+  Changes:
+    - Removed the functionality to shift-click a machine choice to set it as the default
+    - Added an exception so that Klonan's Transport/Mining Drone pseudo-recipes won't show up in the recipe picker
+    - Reworded the tooltip for the production percentage-column to be more correct
+    - Added the mod name and description to the locale file, so it can be localised to other languages
+  Bugfixes:
+    - Added a temporary fix for some dialogs showing up behind the main interface. I'll have to wait on the reaction of the devs for a proper fix. For now, opening the product picker dialog will be slower. Sorry about that.
+    - Fixed that rocket silo recipes would be calculated incorrectly, which had lead to inaccurate machine counts and wacky numbers when using the items/s/machine view
+    - Fixed that machines with negative pollution values would display as having 0 pollution
+    - Fixed that you could be stranded on a non-existant subfloor after deleting its main recipe
+    - Fixed that alt-tabbing or changing resolution while FP is pausing the game could cause it to be stuck in the paused state
+    - Fixed that deleting subfloors could sometimes leave behind remnants that lead to a crash when clicked on
+    - Fixed that energy consumption for machines in tooltips was off by a factor of 60; The calculations were still correct
+
+---------------------------------------------------------------------------------------------------
+Version: 0.18.12
+Date: 30. 04. 2020
+  Bugfixes:
+    - Fixed the usage of an outdated format for hotkeys that was no longer supported with Factorio 0.18.22
+
+---------------------------------------------------------------------------------------------------
+Version: 0.18.11
+Date: 07. 04. 2020
+  Changes:
+    - Added an indication to the tooltip of 'raw ore'-items, differentiating them from mined ore
+  Bugfixes:
+    - Fixed a crash with infinite values in certain modded situations
+    - Fixed that a change to preferences would not always refresh the main interface
+
+---------------------------------------------------------------------------------------------------
 Version: 0.18.10
 Date: 04. 04. 2020
   Features:

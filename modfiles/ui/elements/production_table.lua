@@ -247,7 +247,7 @@ function refresh_machine_table(player, line, table_production)
     local context_line = ui_state.context.line
     if context_line ~= nil and context_line.id == line.id and ui_state.current_activity == "changing_machine" then
         for _, machine_proto in ipairs(line.machine.category.machines) do
-            if data_util.machine.is_applicable(machine_proto, line.recipe) then
+            if data_util.machine.is_applicable(machine_proto, line.recipe.proto) then
                 local button = table_machines.add{type="sprite-button", name="fp_sprite-button_line_machine_" .. line.id ..
                   "_" .. machine_proto.id, mouse_button_filter={"left"}}
                 setup_machine_choice_button(player, button, machine_proto, line.machine.proto.id, 32)
@@ -317,9 +317,8 @@ function setup_machine_choice_button(player, button, machine_proto, current_mach
 
     local s = (selected) and {"", " (", {"fp.selected"}, ")"} or ""
     local m = (tonumber(machine_count) == 1) and {"fp.machine"} or {"fp.machines"}
-    local tt = ui_util.tutorial_tooltip(player, nil, "machine_choice", true)
     button.tooltip = {"", machine_proto.localised_name, s, "\n", machine_count,
-      " ", m, "\n", ui_util.attributes.machine(machine_proto), tt}
+      " ", m, "\n", ui_util.attributes.machine(machine_proto)}
 
     add_rounding_overlay(player, button, {count=tonumber(machine_count), sprite_size=button_size})
 end
@@ -371,7 +370,7 @@ function create_item_button_flow(player_table, gui_table, line, group, classes, 
     for index, class in ipairs(classes) do
         local style = "fp_button_icon_medium_" .. styles[index]
         local tutorial_tooltip = ui_util.tutorial_tooltip(player, nil, string.lower(class), true)
-        local indication = (class == "Fuel") and {"", " (", {"fp.fuel"}, ")"} or ""
+        local indication = (class == "Fuel") and {"fp.indication", {"fp.fuel"}} or ""
         
         for _, item in ipairs(Line.get_in_order(line, class)) do
             local raw_amount, appendage = ui_util.determine_item_amount_and_appendage(player_table, view_name,
@@ -406,7 +405,9 @@ function create_item_button_flow(player_table, gui_table, line, group, classes, 
 
                 -- Determine the correct indication
                 if class == "Product" and line.priority_product_proto == item.proto then 
-                    indication = {"", " (", {"fp.priority"}, ")"}
+                    indication = {"fp.indication", {"fp.priority"}}
+                elseif class == "Ingredient" and item.proto.type == "entity" then
+                    indication = {"fp.indication", {"fp.raw_ore"}}
                 end
 
                 local number_line, button_number = "", nil
