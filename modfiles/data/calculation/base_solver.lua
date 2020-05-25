@@ -1,14 +1,14 @@
 -- Contains the 'meat and potatoes' calculation model that struggles with some more complex setups
-model = {}
+base_solver = {}
 
-function model.update_subfactory(subfactory_data)
+function base_solver.update_subfactory(subfactory_data)
     -- Initialize aggregate with the top level items
     local aggregate = structures.aggregate.init(subfactory_data.player_index, 1)
     for _, product in ipairs(subfactory_data.top_level_products) do
         structures.aggregate.add(aggregate, "Product", product)
     end
 
-    model.update_floor(subfactory_data.top_floor, aggregate)  -- updates aggregate
+    base_solver.update_floor(subfactory_data.top_floor, aggregate)  -- updates aggregate
 
     -- Fuels are combined with Ingredients for top-level purposes
     structures.aggregate.combine_classes(aggregate, "Ingredient", "Fuel")
@@ -22,7 +22,7 @@ function model.update_subfactory(subfactory_data)
     }
 end
 
-function model.update_floor(floor_data, aggregate)
+function base_solver.update_floor(floor_data, aggregate)
     local desired_products = util.table.deepcopy(aggregate.Product)
 
     for _, line_data in ipairs(floor_data.lines) do
@@ -44,7 +44,7 @@ function model.update_floor(floor_data, aggregate)
             end
             
             local floor_products = structures.class.to_array(subfloor_aggregate.Product)
-            model.update_floor(subfloor, subfloor_aggregate)  -- updates aggregate
+            base_solver.update_floor(subfloor, subfloor_aggregate)  -- updates aggregate
 
             -- Convert the internal product-format into positive products for the line and main aggregate
             for _, product in pairs(floor_products) do
@@ -99,7 +99,7 @@ function model.update_floor(floor_data, aggregate)
             }
         else
             -- Update aggregate according to the current line, which also adjusts the respective line object
-            model.update_line(line_data, aggregate)  -- updates aggregate
+            base_solver.update_line(line_data, aggregate)  -- updates aggregate
         end
     end
 
@@ -118,7 +118,7 @@ function model.update_floor(floor_data, aggregate)
     end
 end
 
-function model.update_line(line_data, aggregate)
+function base_solver.update_line(line_data, aggregate)
     -- Determine relevant products
     local relevant_products, byproducts = {}, {}
     for _, product in pairs(line_data.recipe_proto.products) do

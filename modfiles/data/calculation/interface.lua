@@ -1,6 +1,6 @@
-require("model")
-require("structures")
+require("base_solver")
 require("matrix_solver")
+require("structures")
 
 calculation = {
     interface = {},
@@ -23,14 +23,15 @@ function calculation.start_line_by_line_solver(player, subfactory, refresh)
         player_table.active_subfactory = subfactory
         
         local subfactory_data = calculation.interface.get_subfactory_data(player, subfactory)
-        model.update_subfactory(subfactory_data)
+        base_solver.update_subfactory(subfactory_data)
         player_table.active_subfactory = nil
     end
+    
     if refresh then refresh_main_dialog(player) end
 end
 
 function calculation.start_matrix_solver(player, subfactory, refresh, show_dialog)
-    local modal_data= matrix_solver.get_matrix_solver_modal_data(player, subfactory)
+    local modal_data = matrix_solver.get_matrix_solver_modal_data(player, subfactory)
     modal_data["refresh"] = refresh
     local dialog_settings = {
         type = "matrix_solver",
@@ -48,7 +49,7 @@ function calculation.start_matrix_solver(player, subfactory, refresh, show_dialo
         if ui_state.modal_dialog_type == nil then
             enter_modal_dialog(player, dialog_settings)
         end
-    elseif num_rows==num_cols then
+    elseif num_rows == num_cols then
         calculation.run_matrix_solver(player, subfactory, modal_data.free_items, refresh)
     end
 end
