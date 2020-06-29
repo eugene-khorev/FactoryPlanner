@@ -263,7 +263,7 @@ function handle_byproduct_element_click(player, byproduct_id, click, direction, 
             ui_util.message.enqueue(player, {"fp.error_byproduct_wrong_floor"}, "error", 1, true)
 
         -- Byproduct recipes can only be added when the matrix solver is active
-        elseif get_settings(player).prefer_matrix_solver then
+        elseif subfactory.matrix_free_items ~= nil then
             enter_modal_dialog(player, {type="recipe", modal_data={product=byproduct, production_type="consume"}})
         end
     end

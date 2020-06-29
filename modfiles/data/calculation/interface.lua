@@ -9,61 +9,51 @@ calculation = {
 
 -- Updates the whole subfactory calculations from top to bottom
 function calculation.update(player, subfactory, refresh)
-    if get_settings(player).prefer_matrix_solver then
-        calculation.start_matrix_solver(player, subfactory, refresh, false)
-    else
-        calculation.start_line_by_line_solver(player, subfactory, refresh)
-    end
-end
-
-function calculation.start_line_by_line_solver(player, subfactory, refresh)
     if subfactory ~= nil and subfactory.valid then
-        local player_table = get_table(player)
-        -- Save the active subfactory in global so the model doesn't have to pass it around
-        player_table.active_subfactory = subfactory
-        
-        local subfactory_data = calculation.interface.get_subfactory_data(player, subfactory)
-        base_solver.update_subfactory(subfactory_data)
-        player_table.active_subfactory = nil
+        if subfactory.matrix_free_items ~= nil then
+            calculation.start_matrix_solver(player, subfactory, refresh)
+        else
+            calculation.start_line_by_line_solver(player, subfactory, refresh)
+        end
     end
-    
+
     if refresh then refresh_main_dialog(player) end
 end
 
-function calculation.start_matrix_solver(player, subfactory, refresh, show_dialog)
-    local modal_data = matrix_solver.get_matrix_solver_modal_data(player, subfactory)
-    modal_data["refresh"] = refresh
-    local dialog_settings = {
-        type = "matrix_solver",
-        submit = true,
-        modal_data = modal_data
-    }
-    local num_rows = #modal_data.ingredients + #modal_data.products + #modal_data.byproducts + #modal_data.eliminated_items + #modal_data.free_items
-    local num_cols = #modal_data.recipes + #modal_data.ingredients + #modal_data.byproducts + #modal_data.free_items
-    if num_rows~=num_cols then show_dialog = true end
+
+-- Uses the traditional line-by-line solver on thie given subfactory
+function calculation.start_line_by_line_solver(player, subfactory, refresh)
+    local player_table = get_table(player)
+    -- Save the active subfactory in global so the model doesn't have to pass it around
+    player_table.active_subfactory = subfactory
     
-    if refresh and show_dialog then
-        refresh_main_dialog(player)
-        -- only show dialog if no other dialogs open (otherwise this crashes the game)
-        local ui_state = get_ui_state(player)
-        if ui_state.modal_dialog_type == nil then
-            enter_modal_dialog(player, dialog_settings)
-        end
-    elseif num_rows == num_cols then
-        calculation.run_matrix_solver(player, subfactory, modal_data.free_items, refresh)
-    end
+    local subfactory_data = calculation.interface.get_subfactory_data(player, subfactory)
+    base_solver.update_subfactory(subfactory_data)
+    player_table.active_subfactory = nil
 end
 
-function calculation.run_matrix_solver(player, subfactory, matrix_free_items, refresh)
-    if subfactory ~= nil and subfactory.valid then
+-- Uses the matrix solver on the given subfactory
+function calculation.start_matrix_solver(player, subfactory, refresh)
+    local modal_data = matrix_solver.get_matrix_solver_modal_data(player, subfactory)
+
+    local num_rows = #modal_data.ingredients + #modal_data.products + #modal_data.byproducts + #modal_data.eliminated_items + #modal_data.free_items
+    local num_cols = #modal_data.recipes + #modal_data.ingredients + #modal_data.byproducts + #modal_data.free_items
+    
+    -- The matrix dialog needs to be shown when cols and rows don't match up
+    if num_rows ~= num_cols then
+        enter_modal_dialog(player, {type="matrix_solver", submit=true, modal_data=modal_data})
+
+    -- Otherwise, the solver can run right away
+    elseif num_rows == num_cols then
         local player_table = get_table(player)
         player_table.active_subfactory = subfactory
+
         local subfactory_data = calculation.interface.get_subfactory_data(player, subfactory)
         matrix_solver.run_matrix_solver(player, subfactory_data, matrix_free_items)
         player_table.active_subfactory = nil
     end
-    if refresh then refresh_main_dialog(player) end
 end
+
 
 -- Returns a table containing all the data needed to run the calculations for the given subfactory
 function calculation.interface.get_subfactory_data(player, subfactory)

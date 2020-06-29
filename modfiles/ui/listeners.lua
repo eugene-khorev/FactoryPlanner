@@ -328,13 +328,17 @@ script.on_event(defines.events.on_gui_click, function(event)
         elseif element_name == "fp_button_item_amount_toggle" then
             toggle_floor_total_display(player, event.element)
 
-        -- Refreshes the production table with the line-by-line algorithm
+        -- Refreshes the production table
         elseif element_name == "fp_sprite-button_refresh_production" then
             calculation.start_line_by_line_solver(player, ui_state.context.subfactory, true)
 
-        -- Runs the matrix solver
-        elseif element_name == "fp_sprite-button_matrix_solver" then
-            calculation.start_matrix_solver(player, ui_state.context.subfactory, true, true)
+        -- Switches between the base- and matrix-solver
+        elseif element_name == "fp_button_matrix_solver_toggle" then
+            toggle_solvers(player, event.element)
+
+        -- Opens the matrix_solver_dialog
+        elseif element_name == "fp_button_matrix_solver_dialog" then
+            calculation.start_matrix_solver(player,ui_state.context.subfactory, true)
 
         -- Clears all the comments on the current floor
         elseif element_name == "fp_button_production_clear_comments" then
@@ -457,11 +461,13 @@ script.on_event(defines.events.on_gui_click, function(event)
             local split_string = cutil.split(element_name, "_")
             handle_item_button_click(player, split_string[4], split_string[5], split_string[6], click, direction, event.alt)
 
+        --
         elseif string.find(element_name, "^fp_sprite%-button_matrix_solver_item_free_%d+_%d+$") then
             local split_string = cutil.split(element_name, "_")
             local item_id = split_string[7].."_"..split_string[8]
             handle_matrix_solver_free_item_press(player, item_id)
 
+        --
         elseif string.find(element_name, "^fp_sprite%-button_matrix_solver_item_eliminated_%d+_%d+$") then
             local split_string = cutil.split(element_name, "_")
             local item_id = split_string[7].."_"..split_string[8]

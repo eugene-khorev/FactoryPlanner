@@ -29,14 +29,12 @@ function open_matrix_solver_dialog(flow_modal_dialog, modal_data)
 end
 
 function close_matrix_solver_dialog(flow_modal_dialog, action, data)
-    -- all I care about is the modal_data, the data parameter was empty even when I tried defining get_matrix_solver_condition_instructions
-    local player = game.players[flow_modal_dialog.player_index]
-    local ui_state = get_ui_state(player)
-    local modal_data = ui_state.modal_data
-    local subfactory = ui_state.context.subfactory
-    local refresh = modal_data["refresh"]
+    -- TODO save changes
 
-    calculation.run_matrix_solver(player, subfactory, modal_data.free_items, refresh)
+    if action == "submit" then
+        local player = game.players[flow_modal_dialog.player_index]
+        calculation.update(player, get_context(player).subfactory, true)
+    end
 end
 
 function get_matrix_solver_condition_instructions(modal_data)

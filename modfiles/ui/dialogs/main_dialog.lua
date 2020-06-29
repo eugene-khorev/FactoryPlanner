@@ -32,7 +32,9 @@ function player_gui_reset(player)
         mod_gui.get_button_flow(player)["fp_button_toggle_interface"],
         screen["fp_frame_main_dialog"],
         screen["fp_frame_modal_dialog"],
-        screen["fp_frame_modal_dialog_product"],  -- TODO remove when this dialog is added back as a cached one
+        -- The product dialog is normally included in 'cached_dialogs', but still
+        -- needs to be here so it gets deleted even when not in the cache-list
+        screen["fp_frame_modal_dialog_product"],
         unpack(cached_dialogs)
     }
     

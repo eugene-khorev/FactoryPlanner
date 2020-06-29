@@ -6,6 +6,7 @@ function add_production_pane_to(main_dialog)
     local table_titlebar = flow.add{type="table", name="table_production_titlebar", column_count=8}
     table_titlebar.style.bottom_margin = 8
 
+
     -- Refresh button
     local button_refresh = table_titlebar.add{type="sprite-button", name="fp_sprite-button_refresh_production",
       sprite="utility/refresh", style="fp_sprite_button", tooltip={"fp.refresh_production"}}
@@ -13,12 +14,6 @@ function add_production_pane_to(main_dialog)
     button_refresh.style.height = 22
     button_refresh.style.left_margin = 8
 
-    -- Matrix solver button
-    local button_matrix_solver = table_titlebar.add{type="sprite-button", name="fp_sprite-button_matrix_solver",
-      sprite="utility/shuffle", style="fp_sprite_button", tooltip={"fp.matrix_solver"}}
-    button_matrix_solver.style.width = 22
-    button_matrix_solver.style.height = 22
-    button_matrix_solver.style.left_margin = 8
 
     -- Title
     local title = table_titlebar.add{type="label", name="label_production_pane_title", 
@@ -26,6 +21,7 @@ function add_production_pane_to(main_dialog)
     title.style.font = "fp-font-20p"
     title.style.top_padding = 2
     title.style.left_margin = 0
+
 
     -- Navigation
     local label_level = table_titlebar.add{type="label", name="label_production_titlebar_level", caption=""}
@@ -39,15 +35,31 @@ function add_production_pane_to(main_dialog)
     table_navigation.add{type="button", name="fp_button_floor_top", caption={"fp.to_the_top"},
       style="fp_button_mini", mouse_button_filter={"left"}}
 
+
     -- Spacer
     local spacer = table_titlebar.add{type="flow", name="flow_spacer", direction="horizontal"}
     spacer.style.horizontally_stretchable = true
 
+
     -- TopLevelItem-amount toggle
-    local button_toggle = table_titlebar.add{type="button", name="fp_button_item_amount_toggle",
-      caption={"fp.item_amount_toggle"}, tooltip={"fp.item_amount_toggle_tt"},
-      mouse_button_filter={"left"}}
-    button_toggle.style.right_margin = 16
+    table_titlebar.add{type="button", name="fp_button_item_amount_toggle", caption={"fp.item_amount_toggle"},
+      tooltip={"fp.item_amount_toggle_tt"}, mouse_button_filter={"left"}}
+
+
+    -- Matrix solver buttons
+    local flow_matrix_solver = table_titlebar.add{type="table", name="table_production_titlebar_matrix_solver",
+      column_count=2}
+    flow_matrix_solver.style.horizontal_spacing = 0
+    flow_matrix_solver.style.margin = {0, 12}
+
+    local button_matrix_toggle = flow_matrix_solver.add{type="button", name="fp_button_matrix_solver_toggle",
+      caption="Matrix solver", tooltip="", mouse_button_filter={"left"}}
+    
+    local button_matrix_dialog = flow_matrix_solver.add{type="button", name="fp_button_matrix_solver_dialog",
+      caption="[img=utility/enter]", tooltip="", mouse_button_filter={"left"}}
+    button_matrix_dialog.style.width = 28
+    button_matrix_dialog.style.padding = 0
+
 
     -- View selection
     local table_view_selection = table_titlebar.add{type="table", name="table_production_titlebar_view_selection",
@@ -55,20 +67,22 @@ function add_production_pane_to(main_dialog)
     table_view_selection.style.horizontal_spacing = 0
 
     -- Captions will be set appropriately at runtime
-    table_view_selection.add{type="button", name="fp_button_production_titlebar_view_items_per_timescale"}
-    -- (The tooltip for this is set dynamically)
+    table_view_selection.add{type="button", name="fp_button_production_titlebar_view_items_per_timescale",
+      mouse_button_filter={"left"}}  -- (The tooltip for this is set dynamically)
 
-    table_view_selection.add{type="button", name="fp_button_production_titlebar_view_belts_or_lanes"}
-    -- (The tooltip for this is set dynamically)
+    table_view_selection.add{type="button", name="fp_button_production_titlebar_view_belts_or_lanes",
+      mouse_button_filter={"left"}}  -- (The tooltip for this is set dynamically)
 
     table_view_selection.add{type="button", name="fp_button_production_titlebar_view_items_per_second_per_machine",
-      tooltip={"", {"fp.items_per_second_per_machine"}, "\n", {"fp.cycle_production_views"}}}
+      tooltip={"", {"fp.items_per_second_per_machine"}, "\n", {"fp.cycle_production_views"}},
+      mouse_button_filter={"left"}}
 
 
     -- Info label
     local info = flow.add{type="label", name="label_production_info", 
       caption={"", "   (",  {"fp.production_info"}, ")"}}
     info.visible = false
+
 
     -- Main production pane
     local scroll_pane = flow.add{type="scroll-pane", name="scroll-pane_production_pane", direction="vertical"}
@@ -117,6 +131,12 @@ function refresh_production_pane(player)
 
         -- TopLevelItem-amount toggle
         table_titlebar["fp_button_item_amount_toggle"].visible = (floor.level > 1)
+
+        -- Matrix solver buttons
+        local matrix_enabled = (subfactory.matrix_free_items ~= nil)
+        local table_solver = table_titlebar["table_production_titlebar_matrix_solver"]
+        table_solver["fp_button_matrix_solver_toggle"].style = matrix_enabled and "fp_button_selected" or "button"
+        table_solver["fp_button_matrix_solver_dialog"].enabled = matrix_enabled
         
         -- Update the dynamic parts of the view state buttons
         local state_existed = (ui_state.view_state ~= nil)
@@ -186,13 +206,41 @@ function toggle_floor_total_display(player, button)
     if button.style.name == "button" then
         flags.floor_total = true
         button.style = "fp_button_selected"
-        button.style.right_margin = 16
     else
         flags.floor_total = false
         button.style = "button"
     end
 
     refresh_main_dialog(player)
+end
+
+-- Toggles between both of the solvers
+function toggle_solvers(player, button)
+    local ui_state = get_ui_state(player)
+    local subfactory = ui_state.context.subfactory
+
+    if subfactory.matrix_free_items == nil then
+        subfactory.matrix_free_items = {}
+        button.style = "fp_button_selected"
+        button.parent["fp_button_matrix_solver_dialog"].enabled = true
+    else
+        subfactory.matrix_free_items = nil
+        button.style = "button"
+        button.parent["fp_button_matrix_solver_dialog"].enabled = false
+
+        -- Remove any byproducts recipes as they don't work with the base solver
+        -- TODO NEEDS TESTING
+        for _, floor in pairs(Subfactory.get_in_order(subfactory, "Floor")) do
+            for _, line in pairs(Floor.get_in_order(floor, "Line")) do
+                if line.recipe.production_type == "consume" then
+                    Floor.remove(floor, line)
+                end
+            end
+        end
+    end
+
+    ui_state.current_activity = nil
+    calculation.update(player, subfactory, true)
 end
 
 

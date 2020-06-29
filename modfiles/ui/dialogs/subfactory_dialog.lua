@@ -30,6 +30,8 @@ function close_subfactory_dialog(flow_modal_dialog, action, data)
         else
             local subfactory = Factory.add(ui_state.context.factory, Subfactory.init(data.name, data.icon,
               get_settings(player).default_timescale))
+            if get_settings(player).prefer_matrix_solver then subfactory.matrix_free_items = {} end
+            
             ui_util.context.set_subfactory(player, subfactory)
         end
     elseif action == "delete" then
