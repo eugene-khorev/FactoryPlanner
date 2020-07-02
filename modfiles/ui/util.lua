@@ -1,4 +1,7 @@
+require("mod-gui")
+
 ui_util = {
+    mod_gui = {},
     context = {},
     attributes = {},
     switch = {},
@@ -7,23 +10,11 @@ ui_util = {
 
 
 -- ** GUI utilities **
--- Readjusts the size of the main dialog according to the user settings
-function ui_util.recalculate_main_dialog_dimensions(player)
-    local player_table = get_table(player)
-
-    local width = 880 + ((player_table.settings.items_per_row - 4) * 175)
-    local height = 394 + (player_table.settings.recipes_at_once * 39)
-
-    local dimensions = {width=width, height=height}
-    player_table.ui_state.main_dialog_dimensions = dimensions
-    return dimensions
-end
-
 -- Properly centers the given frame (need width/height parameters cause no API-read exists)
 function ui_util.properly_center_frame(player, frame, width, height)
     local resolution = player.display_resolution
     local scale = player.display_scale
-    local x_offset = ((resolution.width - (width * scale)) / 2) 
+    local x_offset = ((resolution.width - (width * scale)) / 2)
     local y_offset = ((resolution.height - (height * scale)) / 2)
     frame.location = {x_offset, y_offset}
 end
@@ -40,6 +31,12 @@ function ui_util.setup_numeric_textfield(textfield, decimal, negative)
     textfield.numeric = true
     textfield.allow_decimal = (decimal or false)
     textfield.allow_negative = (negative or false)
+end
+
+-- Focuses and selects all the text of the given textfield
+function ui_util.select_all(textfield)
+    textfield.focus()
+    textfield.select_all()
 end
 
 -- File-local to so this dict isn't recreated on every call of the function following it
@@ -81,7 +78,7 @@ function ui_util.tutorial_tooltip(player, button, tut_type, line_break)
     local preferences = get_preferences(player)
     if preferences.tutorial_mode then
         local b = line_break and "\n\n" or ""
-        local alt_action = get_preferences(player).alt_action
+        local alt_action = get_settings(player).alt_action
         local f = (valid_alt_types[tut_type] and alt_action ~= "none")
           and {"fp.tut_alt_action", {"fp.alt_action_" .. alt_action}} or ""
         if button ~= nil then
@@ -99,7 +96,7 @@ end
 function ui_util.determine_item_amount_and_appendage(player_table, view_name, item_type, amount, machine_count)
     local timescale = player_table.ui_state.context.subfactory.timescale
     local number, appendage = nil, ""
-    
+
     if view_name == "items_per_timescale" then
         number = amount
 
@@ -108,7 +105,8 @@ function ui_util.determine_item_amount_and_appendage(player_table, view_name, it
         appendage = {"", type_text, "/", ui_util.format_timescale(timescale, true, false)}
 
     elseif view_name == "belts_or_lanes" and item_type ~= "fluid" then
-        local throughput = player_table.preferences.preferred_belt.throughput
+        local player = game.get_player(player_table.index)
+        local throughput = prototyper.defaults.get(player, "belts").throughput
         local show_belts = (player_table.settings.belts_or_lanes == "belts")
         local divisor = (show_belts) and throughput or (throughput / 2)
         number = amount / divisor / timescale
@@ -129,6 +127,11 @@ function ui_util.determine_item_amount_and_appendage(player_table, view_name, it
 
     end
 
+    -- If no number would be shown, but the amount is still tiny, adjust the number to be
+    -- smaller than the margin of error, so it gets automatically hidden afterwards
+    -- Kinda hacky way to do this, but doesn't matter probably ¯\_(ツ)_/¯
+    if number == nil and amount < margin_of_error then number = margin_of_error - 1 end
+
     return number, appendage  -- number might be nil here
 end
 
@@ -146,7 +149,7 @@ function ui_util.generate_module_effects_tooltip_proto(module)
 end
 
 -- Generates a tooltip out of the given effects, ignoring those that are 0
-function ui_util.generate_module_effects_tooltip(effects, machine_proto, player, subfactory)
+function ui_util.generate_module_effects_tooltip(effects, machine_proto)
     local localised_names = {
         consumption = {"fp.module_consumption"},
         speed = {"fp.module_speed"},
@@ -158,14 +161,14 @@ function ui_util.generate_module_effects_tooltip(effects, machine_proto, player,
     for name, effect in pairs(effects) do
         if effect ~= 0 then
             local appendage = ""
-            
+
             -- Handle effect caps and mining productivity if this is a machine-tooltip
             if machine_proto ~= nil then
                 -- Consumption, speed and pollution are capped at -80%
                 if (name == "consumption" or name == "speed" or name == "pollution") and effect < -0.8 then
                     effect = -0.8
                     appendage = {"", " (", {"fp.capped"}, ")"}
-                    
+
                 -- Productivity can't go lower than 0
                 elseif name == "productivity" then
                     if effect < 0 then
@@ -180,7 +183,7 @@ function ui_util.generate_module_effects_tooltip(effects, machine_proto, player,
             tooltip = {"", tooltip, "\n", localised_names[name], ": ", number, "%", appendage}
         end
     end
-    
+
     if table_size(tooltip) > 1 then return {"", "\n", tooltip}
     else return tooltip end
 end
@@ -190,7 +193,7 @@ end
 -- Formats given number to given number of significant digits
 function ui_util.format_number(number, precision)
     if number == nil then return nil end
-    
+
     -- To avoid scientific notation, chop off the decimals points for big numbers
     if (number / (10 ^ precision)) >= 1 then
         return ("%d"):format(number)
@@ -198,7 +201,7 @@ function ui_util.format_number(number, precision)
         -- Set very small numbers to 0
         if number < (0.1 ^ precision) then
             number = 0
-            
+
         -- Decrease significant digits for every zero after the decimal point
         -- This keeps the number of digits after the decimal point constant
         elseif number < 1 then
@@ -206,15 +209,15 @@ function ui_util.format_number(number, precision)
             while n < 1 do
                 precision = precision - 1
                 n = n * 10
-            end        
+            end
         end
-        
+
         -- Show the number in the shortest possible way
         return ("%." .. precision .. "g"):format(number)
     end
 end
 
--- Returns string representing the given power 
+-- Returns string representing the given power
 function ui_util.format_SI_value(value, unit, precision)
     local prefixes = {"", "kilo", "mega", "giga", "tera", "peta", "exa", "zetta", "yotta"}
     local units = {
@@ -225,7 +228,7 @@ function ui_util.format_SI_value(value, unit, precision)
 
     local sign = (value >= 0) and "" or "-"
     value = math.abs(value) or 0
-    
+
     local scale_counter = 0
     -- Determine unit of the energy consumption, while keeping the result above 1 (ie no 0.1kW, but 100W)
     while scale_counter < #prefixes and value > (1000 ^ (scale_counter + 1)) do
@@ -258,7 +261,7 @@ function ui_util.rate_limiting_active(player, event_name, object_name)
     local last_action = get_ui_state(player).last_action
     local timeout = ui_util.rate_limiting_events[event_name].timeout
     local current_tick = game.tick
-    
+
     -- Always allow action if there is no last_action or the ticks are paused
     local limiting_active = (table_size(last_action) > 0 and not game.tick_paused
       and event_name == last_action.event_name and object_name == last_action.object_name
@@ -309,15 +312,6 @@ function ui_util.format_timescale(timescale, raw, whole_word)
     else return {"", "1", ts} end
 end
 
--- Formats the given 'modifier keys' to a clearer table
-function ui_util.format_modifier_keys(direction, alt)
-    return {
-        shift = (direction == "positive"),
-        control = (direction == "negative"),
-        alt = alt
-    }
-end
-
 -- Checks whether the archive is open; posts an error and returns true if it is
 function ui_util.check_archive_status(player)
     if get_flags(player).archive_open then
@@ -330,7 +324,7 @@ end
 
 -- Executes an alt-action on the given action_type and data
 function ui_util.execute_alt_action(player, action_type, data)
-    local alt_action = get_preferences(player).alt_action
+    local alt_action = get_settings(player).alt_action
 
     local remote_action = remote_actions[alt_action]
     if remote_action ~= nil and remote_action[action_type] then
@@ -338,15 +332,23 @@ function ui_util.execute_alt_action(player, action_type, data)
     end
 end
 
--- Tries to find the currently open modal dialog and returns it
-function ui_util.find_modal_dialog(player)
-    local modal_dialog_type = get_ui_state(player).modal_dialog_type
-    if modal_dialog_type == nil then
-        return nil
-    else
-        local candidate_frame_name = "fp_frame_modal_dialog_" .. modal_dialog_type
-        return player.gui.screen[candidate_frame_name] or player.gui.screen["fp_frame_modal_dialog"]
+
+-- **** Mod-GUI ****
+-- Create the always-present GUI button to open the main dialog
+function ui_util.mod_gui.create(player)
+    local frame_flow = mod_gui.get_button_flow(player)
+    if not frame_flow["fp_button_toggle_interface"] then
+        frame_flow.add{type="button", name="fp_button_toggle_interface", caption="FP", tooltip={"fp.open_main_dialog"},
+          style=mod_gui.button_style, mouse_button_filter={"left"}}
     end
+
+    frame_flow["fp_button_toggle_interface"].visible = get_settings(player).show_gui_button
+end
+
+-- Toggles the visibility of the toggle-main-dialog-button
+function ui_util.mod_gui.toggle(player)
+    local enable = get_settings(player).show_gui_button
+    mod_gui.get_button_flow(player)["fp_button_toggle_interface"].visible = enable
 end
 
 
@@ -398,7 +400,8 @@ end
 
 -- Returns a tooltip containing the attributes of the given fuel prototype
 function ui_util.attributes.fuel(fuel)
-    return {"", {"fp.fuel_value"}, ": ", ui_util.format_SI_value(fuel.fuel_value, "J", 3)}
+    return {"", {"fp.fuel_value"}, ": ", ui_util.format_SI_value(fuel.fuel_value, "J", 3), "\n",
+           {"fp.emissions_multiplier"}, ": " .. fuel.emissions_multiplier}
 end
 
 -- Returns a tooltip containing the attributes of the given belt prototype
@@ -424,11 +427,11 @@ function ui_util.switch.add_on_off(parent_flow, name, state, caption, tooltip)
 
     local flow = parent_flow.add{type="flow", name="flow_" .. name, direction="horizontal"}
     flow.style.vertical_align = "center"
-    
+
     local switch = flow.add{type="switch", name="fp_switch_" .. name, switch_state=state,
       left_label_caption={"fp.on"}, right_label_caption={"fp.off"}}
 
-    local caption = (tooltip ~= nil) and {"", caption, " [img=info]"} or caption
+    caption = (tooltip ~= nil) and {"", caption, " [img=info]"} or caption
     local label = flow.add{type="label", name="label_" .. name, caption=caption, tooltip=tooltip}
     label.style.font = "fp-font-15p"
     label.style.left_margin = 8
@@ -471,9 +474,9 @@ end
 -- The lifetime is decreased for every message on every refresh
 -- (The algorithm(s) could be more efficient, but it doesn't matter for the small dataset)
 function ui_util.message.refresh(player)
-    local main_dialog = player.gui.screen["fp_frame_main_dialog"]
-    if main_dialog == nil then return end
-    local flow_titlebar = main_dialog["flow_titlebar"]
+    local frame_main_dialog = player.gui.screen["fp_frame_main_dialog"]
+    if frame_main_dialog == nil then return end
+    local flow_titlebar = frame_main_dialog["flow_titlebar"]
     if flow_titlebar == nil then return end
 
     -- The message types are ordered by priority
@@ -482,14 +485,14 @@ function ui_util.message.refresh(player)
         [2] = {name = "warning", color = "yellow"},
         [3] = {name = "hint", color = "green"}
     }
-    
+
     local ui_state = get_ui_state(player)
-    
+
     -- Go over the all types and messages, trying to find one that should be shown
     local new_message, new_color = "", nil
     for _, type in ipairs(types) do
         -- All messages will have lifetime > 0 at this point
-        for _, message in ipairs(ui_state.message_queue) do
+        for _, message in pairs(ui_state.message_queue) do
             -- Find first message of this type, then break
             if message.type == type.name then
                 new_message = message.text
@@ -500,13 +503,13 @@ function ui_util.message.refresh(player)
         -- If a message is found, break because no messages of lower ranked type should be considered
         if new_message ~= "" then break end
     end
-    
+
     -- Decrease the lifetime of every queued message
-    for index, message in ipairs(ui_state.message_queue) do
+    for index, message in pairs(ui_state.message_queue) do
         message.lifetime = message.lifetime - 1
-        if message.lifetime <= 0 then table.remove(ui_state.message_queue, index) end
+        if message.lifetime <= 0 then ui_state.message_queue[index] = nil end
     end
-    
+
     local label_hint = flow_titlebar["label_titlebar_hint"]
     label_hint.caption = new_message
     ui_util.set_label_color(label_hint, new_color)

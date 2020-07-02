@@ -13,11 +13,19 @@ data.raw["gui-style"].default["fp_button_titlebar"] = {
     height = 34
 }
 
-data.raw["gui-style"].default["fp_preferences_table"] = {
-    type = "table_style",
-    top_margin = 4,
-    left_margin = 16,
-    bottom_padding = 8
+data.raw["gui-style"].default["fp_button_titlebar_square"] = {
+    type = "button_style",
+    parent = "fp_button_titlebar",
+    width = 34,
+    padding = 0
+}
+
+data.raw["gui-style"].default["fp_button_titlebar_square_selected"] = {
+    type = "button_style",
+    parent = "fp_button_selected",
+    height = 34,
+    width = 34,
+    padding = 0
 }
 
 data.raw["gui-style"].default["fp_button_action"] = {
@@ -59,11 +67,11 @@ data.raw["gui-style"].default["fp_subfactory_sprite_button_selected"] = {
     parent = "fp_subfactory_sprite_button",
     default_graphical_set = {
         base = {position = {51, 17}, corner_size = 8},
-        shadow = default_dirt
+        --shadow = default_dirt
     },
     hovered_graphical_set = {
         base = {position = {51, 17}, corner_size = 8},
-        shadow = default_dirt
+        --shadow = default_dirt
     }
 }
 
@@ -72,11 +80,11 @@ data.raw["gui-style"].default["fp_button_selected"] = {
     parent = "button",
     default_graphical_set = {
         base = {position = {51, 17}, corner_size = 8},
-        shadow = default_dirt
+        --shadow = default_dirt
     },
     hovered_graphical_set = {
         base = {position = {51, 17}, corner_size = 8},
-        shadow = default_dirt
+        --shadow = default_dirt
     }
 }
 
@@ -97,7 +105,7 @@ data.raw["gui-style"].default["fp_button_timescale_selected"] = {
     disabled_font_color = {},  -- pure black
     disabled_graphical_set = {
         base = {position = {51, 17}, corner_size = 8},
-        shadow = default_dirt
+        --shadow = default_dirt
     }
 }
 
@@ -114,7 +122,7 @@ data.raw["gui-style"].default["fp_view_selection_button_selected"] = {
     disabled_font_color = {},  -- pure black
     disabled_graphical_set = {
         base = {position = {51, 17}, corner_size = 8},
-        shadow = default_dirt
+        --shadow = default_dirt
     }
 }
 
@@ -159,6 +167,14 @@ data.raw["gui-style"].default["fp_sprite-button_inset_line"] = {
     padding = 2
 }
 
+data.raw["gui-style"].default["fp_sprite-button_choose_elem"] = {
+    type = "button_style",
+    parent = "fp_sprite-button_inset",
+    height = 30,
+    width = 30,
+    padding = 0
+}
+
 data.raw["gui-style"].default["fp_table_subgroup"] = {
     type = "table_style",
     horizontal_spacing = 2,
@@ -200,7 +216,7 @@ for state, y in pairs(icon_state_indexes) do
             scale = 1
         },
         -- The disabled set is the same as the default one, by default
-        disabled_graphical_set = 
+        disabled_graphical_set =
         {
             filename = "__factoryplanner__/graphics/icon_backgrounds.png",
             priority = "extra-high-no-scale",

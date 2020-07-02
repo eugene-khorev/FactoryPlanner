@@ -17,14 +17,14 @@ end
 
 
 -- Update the validity of this machine
-function Machine.update_validity(self, recipe)
+function Machine.update_validity(self, line)
     if self.category == nil or self.proto == nil then return false end
     local category_name = (type(self.category) == "string") and self.category or self.category.name
     local new_category_id = new.all_machines.map[category_name]
 
     if new_category_id ~= nil then
         self.category = new.all_machines.categories[new_category_id]
-        
+
         if self.proto == nil then self.valid = false; return self.valid end
         local proto_name = (type(self.proto) == "string") and self.proto or self.proto.name
         local new_machine_id = self.category.map[proto_name]
@@ -43,16 +43,16 @@ function Machine.update_validity(self, recipe)
     end
 
     -- If the machine is valid, it might still not be applicable
-    if self.valid and (not recipe.valid or not data_util.machine.is_applicable(self.proto, recipe.proto)) then
+    if self.valid and (not line.recipe.valid or not Line.is_machine_applicable(line, self.proto)) then
         self.valid = false
     end
-    
+
     return self.valid
 end
 
 -- Tries to repair this machine, deletes it otherwise (by returning false)
 -- If this is called, the machine is invalid and has a string saved to proto (and maybe to category)
-function Machine.attempt_repair(self, player)
+function Machine.attempt_repair(self, _)
     -- If the category is nil, this machine is not repairable
     if self.category == nil then
         return false
@@ -66,7 +66,7 @@ function Machine.attempt_repair(self, player)
             return false
         end
     end
-    
+
     -- At this point, category is always valid (and proto is always a string)
     local current_machine_id = self.category.map[self.proto]
     if current_machine_id ~= nil then

@@ -1,11 +1,15 @@
 -- Represents an item picker, including a search bar and a warning label
 item_picker = {groups_per_row = 6}
 
-
+-- ** TOP LEVEL **
 -- Adds an item picker panel to the given parent element
 function item_picker.create(parent)
     if parent["flow_item_picker"] ~= nil then return parent["flow_item_picker"] end
     local picker_flow = parent.add{type="flow", name="flow_item_picker", direction="vertical"}
+
+    -- Separation line
+    local separation_line = picker_flow.add{type="line"}
+    separation_line.style.margin = {8, 4}
 
     -- Search bar
     local table_search = picker_flow.add{type="flow", name="table_search_bar", direction="horizontal"}
@@ -30,7 +34,7 @@ function item_picker.create(parent)
 
     local table_item_groups = flow_picker_panel.add{type="table", name="table_item_groups",
       column_count=item_picker.groups_per_row}
-    table_item_groups.style.bottom_margin = 6
+    table_item_groups.style.bottom_margin = 12
     table_item_groups.style.horizontal_spacing = 3
     table_item_groups.style.vertical_spacing = 3
     table_item_groups.style.minimal_width = item_picker.groups_per_row * (64 + 9)
@@ -141,7 +145,7 @@ function item_picker.filter(picker_flow, searchterm, first_run)
     local visible_group_count = 0
     local total_group_count = 0
     local scroll_pane_height = 0
-    
+
     for _, group_element in pairs(flow_picker_panel["table_item_groups"].children) do
         if group_element.style.name == "fp_button_icon_clicked" then previously_selected_group = group_element end
 
@@ -158,14 +162,13 @@ function item_picker.filter(picker_flow, searchterm, first_run)
 
         for _, subgroup_element in pairs(subgroup_elements) do
             local subgroup_visible = false
-                
+
             for _, item_element in pairs(subgroup_element.children) do
                 local item = identifier_item_map[string.gsub(item_element.name, "fp_button_item_pick_", "")]
-                
+
                 local visible = false
-                -- Set visibility of items (and item-groups) appropriately (exception for rocket-part)
-                if item.name == "rocket-part" or (not item.hidden and not item.ingredient_only
-                  and string.find(item.name, search_term, 1, true)) then
+                -- Set visibility of items (and item-groups) appropriately
+                if not item.hidden and not item.ingredient_only and string.find(item.name, search_term, 1, true) then
                     visible = true
 
                     -- Only need to refresh button style if needed
@@ -179,22 +182,22 @@ function item_picker.filter(picker_flow, searchterm, first_run)
                         end
                     end
                 end
-                
+
                 item_element.visible = visible
                 if visible then subgroup_visible = true; group_visible = true end
             end
-            
+
             subgroup_element.visible = subgroup_visible
             local item_count = table_size(subgroup_element.children)
             specific_scroll_pane_height = specific_scroll_pane_height +  math.ceil(item_count / 12) * 33
             subgroup_count = subgroup_count + 1
-            
+
         end
         group_element.visible = group_visible
         specific_scroll_pane_height = specific_scroll_pane_height + subgroup_count * 3
         scroll_pane_height = math.max(scroll_pane_height, specific_scroll_pane_height)
-        total_group_count = total_group_count + 1     
-        
+        total_group_count = total_group_count + 1
+
         if group_visible then
             visible_group_count = visible_group_count + 1
             if first_visible_group == nil then first_visible_group = group_id end
@@ -209,21 +212,22 @@ function item_picker.filter(picker_flow, searchterm, first_run)
     -- Show warning message if no corresponding items are found
     warning_label.visible = (first_visible_group == nil)
     local warning_label_height = (warning_label.visible) and 36 or 0
-    
+
     -- Set item group height and picker panel heights to always add up to the same so the dialog window size doesn't change
     local group_row_count = math.ceil(visible_group_count / item_picker.groups_per_row)
     flow_picker_panel["table_item_groups"].style.height = group_row_count * 70
-    
+
     -- Set scroll-pane height to be the same for all item groups
     scroll_pane_height = scroll_pane_height + (math.ceil(total_group_count / item_picker.groups_per_row) * 70)
-    local picker_panel_height = math.min(scroll_pane_height, (ui_state.modal_data.dialog_maximal_height - 100))
+    local picker_panel_height = math.min(scroll_pane_height, (ui_state.modal_data.dialog_maximal_height - 170))
       - (group_row_count * 70) - warning_label_height
     for _, child in ipairs(flow_picker_panel.children_names) do
         if string.find(child, "^scroll%-pane_subgroups_%d+$") then
             flow_picker_panel[child].style.height = picker_panel_height
         end
-    end    
+    end
 end
+
 
 -- Handles any change to the given item picker textfield
 function item_picker.handle_searchfield_change(textfield)

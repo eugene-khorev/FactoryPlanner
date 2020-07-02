@@ -1,255 +1,27 @@
--- Creates the production pane that displays 
-function add_production_pane_to(main_dialog)
-    local flow = main_dialog.add{type="flow", name="flow_production_pane", direction="vertical"}
+production_titlebar = {}
 
-    -- Production titlebar
-    local table_titlebar = flow.add{type="table", name="table_production_titlebar", column_count=8}
-    table_titlebar.style.bottom_margin = 8
-
-
-    -- Refresh button
-    local button_refresh = table_titlebar.add{type="sprite-button", name="fp_sprite-button_refresh_production",
-      sprite="utility/refresh", style="fp_sprite_button", tooltip={"fp.refresh_production"}}
-    button_refresh.style.width = 22
-    button_refresh.style.height = 22
-    button_refresh.style.left_margin = 8
-
-
-    -- Title
-    local title = table_titlebar.add{type="label", name="label_production_pane_title", 
-      caption={"", "  ", {"fp.production"}, " "}}
-    title.style.font = "fp-font-20p"
-    title.style.top_padding = 2
-    title.style.left_margin = 0
-
-
-    -- Navigation
-    local label_level = table_titlebar.add{type="label", name="label_production_titlebar_level", caption=""}
-    label_level.style.font = "fp-font-bold-15p"
-    label_level.style.top_padding = 4
-    label_level.style.left_padding = 10
-
-    local table_navigation = table_titlebar.add{type="table", name="table_production_titlebar_navigation", column_count=2}
-    table_navigation.add{type="button", name="fp_button_floor_up", caption={"fp.go_up"},
-      style="fp_button_mini", mouse_button_filter={"left"}}
-    table_navigation.add{type="button", name="fp_button_floor_top", caption={"fp.to_the_top"},
-      style="fp_button_mini", mouse_button_filter={"left"}}
-
-
-    -- Spacer
-    local spacer = table_titlebar.add{type="flow", name="flow_spacer", direction="horizontal"}
-    spacer.style.horizontally_stretchable = true
-
-
-    -- TopLevelItem-amount toggle
-    table_titlebar.add{type="button", name="fp_button_item_amount_toggle", caption={"fp.item_amount_toggle"},
-      tooltip={"fp.item_amount_toggle_tt"}, mouse_button_filter={"left"}}
-
-
-    -- Matrix solver buttons
-    local flow_matrix_solver = table_titlebar.add{type="table", name="table_production_titlebar_matrix_solver",
-      column_count=2}
-    flow_matrix_solver.style.horizontal_spacing = 0
-    flow_matrix_solver.style.margin = {0, 12}
-
-    local button_matrix_toggle = flow_matrix_solver.add{type="button", name="fp_button_matrix_solver_toggle",
-      caption="Matrix solver", tooltip="", mouse_button_filter={"left"}}
-    
-    local button_matrix_dialog = flow_matrix_solver.add{type="button", name="fp_button_matrix_solver_dialog",
-      caption="[img=utility/enter]", tooltip="", mouse_button_filter={"left"}}
-    button_matrix_dialog.style.width = 28
-    button_matrix_dialog.style.padding = 0
-
-
-    -- View selection
-    local table_view_selection = table_titlebar.add{type="table", name="table_production_titlebar_view_selection",
-      column_count=3}
-    table_view_selection.style.horizontal_spacing = 0
-
-    -- Captions will be set appropriately at runtime
-    table_view_selection.add{type="button", name="fp_button_production_titlebar_view_items_per_timescale",
-      mouse_button_filter={"left"}}  -- (The tooltip for this is set dynamically)
-
-    table_view_selection.add{type="button", name="fp_button_production_titlebar_view_belts_or_lanes",
-      mouse_button_filter={"left"}}  -- (The tooltip for this is set dynamically)
-
-    table_view_selection.add{type="button", name="fp_button_production_titlebar_view_items_per_second_per_machine",
-      tooltip={"", {"fp.items_per_second_per_machine"}, "\n", {"fp.cycle_production_views"}},
-      mouse_button_filter={"left"}}
-
-
-    -- Info label
-    local info = flow.add{type="label", name="label_production_info", 
-      caption={"", "   (",  {"fp.production_info"}, ")"}}
-    info.visible = false
-
-
-    -- Main production pane
-    local scroll_pane = flow.add{type="scroll-pane", name="scroll-pane_production_pane", direction="vertical"}
-    scroll_pane.style.left_margin = 4
-    scroll_pane.style.right_margin = -4
-    scroll_pane.style.extra_left_margin_when_activated = -4
-    scroll_pane.style.extra_top_margin_when_activated = -4
-    scroll_pane.style.horizontally_stretchable = true
-    scroll_pane.style.vertically_squashable = true
-
-    refresh_production_pane(game.get_player(main_dialog.player_index))
-end
-
--- Refreshes the production pane (titlebar + table)
-function refresh_production_pane(player)
-    local main_dialog = player.gui.screen["fp_frame_main_dialog"]
-    -- Cuts function short if the approriate GUI's haven't been initialized yet
-    if not (main_dialog and main_dialog["flow_production_pane"]) then return end
-
-    local player_table = get_table(player)
-    local ui_state = player_table.ui_state
-    local subfactory = ui_state.context.subfactory
-
-    local table_titlebar = main_dialog["flow_production_pane"]["table_production_titlebar"]
-    local table_view = table_titlebar["table_production_titlebar_view_selection"]
-    -- Only show the titlebar if a valid subfactory is shown
-    table_titlebar.visible = (subfactory ~= nil and subfactory.valid)
-
-    -- Configure Floor labels and buttons
-    if subfactory ~= nil and subfactory.valid then        
-        local floor = ui_state.context.floor
-
-        -- Refresh button
-        local button_refresh = table_titlebar["fp_sprite-button_refresh_production"]
-        button_refresh.visible = (floor.Line.count > 0)
-
-        -- Level indicator
-        local label_level = table_titlebar["label_production_titlebar_level"]
-        label_level.caption = {"", {"fp.level"}, " ", floor.level, "  "}
-        label_level.visible = (floor.Line.count > 0)
-
-        -- Navigation
-        local table_navigation = table_titlebar["table_production_titlebar_navigation"]
-        table_navigation["fp_button_floor_up"].visible = (floor.level > 1)
-        table_navigation["fp_button_floor_top"].visible = (floor.level > 2)
-
-        -- TopLevelItem-amount toggle
-        table_titlebar["fp_button_item_amount_toggle"].visible = (floor.level > 1)
-
-        -- Matrix solver buttons
-        local matrix_enabled = (subfactory.matrix_free_items ~= nil)
-        local table_solver = table_titlebar["table_production_titlebar_matrix_solver"]
-        table_solver["fp_button_matrix_solver_toggle"].style = matrix_enabled and "fp_button_selected" or "button"
-        table_solver["fp_button_matrix_solver_dialog"].enabled = matrix_enabled
-        
-        -- Update the dynamic parts of the view state buttons
-        local state_existed = (ui_state.view_state ~= nil)
-        refresh_view_state(player, subfactory)
-
-        -- Refresh subfactory pane to update it with the selected state
-        if not state_existed then refresh_subfactory_pane(player) end
-
-        for _, view in ipairs(ui_state.view_state) do
-            local button = table_view["fp_button_production_titlebar_view_" .. view.name]
-            button.caption = view.caption
-
-            -- Update the tooltip based on current settings
-            -- The "items_per_second_per_machine"-tooltip doesn't need to be updated according to any settings
-            if view.name == "items_per_timescale" then
-                local timescale = ui_util.format_timescale(subfactory.timescale, true, true)
-                button.tooltip = {"", {"fp.items_per_timescale"}, " ", timescale, ".",
-                  "\n", {"fp.cycle_production_views"}}
-            elseif view.name == "belts_or_lanes" then
-                local belts_lanes_label = (player_table.settings.belts_or_lanes == "belts") 
-                  and {"fp.belts"} or {"fp.lanes"}
-                button.tooltip = {"", {"fp.belts_or_lanes", belts_lanes_label}, "\n", {"fp.cycle_production_views"}}
-            end
-
-            -- It's disabled if it's selected or not enabled by the view
-            button.enabled = (not view.selected and view.enabled)
-            button.style = view.selected and "fp_view_selection_button_selected" or "fp_view_selection_button"
+-- ** LOCAL UTIL **
+-- Moves on the selection until it is on an enabled state (at least 1 view needs to be enabled)
+-- (Not useful currently as all views are enabled, but it was in the past)
+local function correct_view_state(view_state, id_to_select)
+    while true do
+        view = view_state[id_to_select]
+        if view.enabled then
+            view.selected = true
+            view_state.selected_view = view
+            break
+        else
+            id_to_select = (id_to_select % #view_state) + 1
         end
     end
-
-    refresh_production_table(player)
 end
-
-
--- Handles a click on a button that changes the viewed floor of a subfactory
-function handle_floor_change_click(player, destination)
-    local ui_state = get_ui_state(player)
-    local subfactory = ui_state.context.subfactory
-    local floor = ui_state.context.floor
-
-    if subfactory == nil or floor == nil then return end
-
-    local selected_floor = nil
-    if destination == "up" and floor.level > 1 then
-        selected_floor = floor.origin_line.parent
-    elseif destination == "top" then
-        selected_floor = Subfactory.get(subfactory, "Floor", 1)
-    end
-
-    -- Only need to refresh if the floor was indeed changed
-    if selected_floor ~= nil then
-        ui_util.context.set_floor(player, selected_floor)
-
-        -- Remove floor if no recipes have been added to it
-        Floor.delete_empty(floor)
-
-        ui_state.current_activity = nil
-        calculation.update(player, subfactory, true)
-    end
-end
-
-
--- Toggles the button-style and ui_state of floor_total
-function toggle_floor_total_display(player, button)
-    local flags = get_flags(player)
-
-    if button.style.name == "button" then
-        flags.floor_total = true
-        button.style = "fp_button_selected"
-    else
-        flags.floor_total = false
-        button.style = "button"
-    end
-
-    refresh_main_dialog(player)
-end
-
--- Toggles between both of the solvers
-function toggle_solvers(player, button)
-    local ui_state = get_ui_state(player)
-    local subfactory = ui_state.context.subfactory
-
-    if subfactory.matrix_free_items == nil then
-        subfactory.matrix_free_items = {}
-        button.style = "fp_button_selected"
-        button.parent["fp_button_matrix_solver_dialog"].enabled = true
-    else
-        subfactory.matrix_free_items = nil
-        button.style = "button"
-        button.parent["fp_button_matrix_solver_dialog"].enabled = false
-
-        -- Remove any byproducts recipes as they don't work with the base solver
-        -- TODO NEEDS TESTING
-        for _, floor in pairs(Subfactory.get_in_order(subfactory, "Floor")) do
-            for _, line in pairs(Floor.get_in_order(floor, "Line")) do
-                if line.recipe.production_type == "consume" then
-                    Floor.remove(floor, line)
-                end
-            end
-        end
-    end
-
-    ui_state.current_activity = nil
-    calculation.update(player, subfactory, true)
-end
-
 
 -- Refreshes the current view state
-function refresh_view_state(player, subfactory)
+local function refresh_view_state(player, subfactory)
     local player_table = get_table(player)
     local timescale = ui_util.format_timescale(subfactory.timescale, true, false)
     local bl_caption = (player_table.settings.belts_or_lanes == "belts") and {"fp.cbelts"} or {"fp.clanes"}
-    local bl_sprite = player_table.preferences.preferred_belt.rich_text
+    local bl_sprite = prototyper.defaults.get(player, "belts").rich_text
     local view_state = {
         [1] = {
             name = "items_per_timescale",
@@ -285,16 +57,264 @@ function refresh_view_state(player, subfactory)
     player_table.ui_state.view_state = view_state
 end
 
+
+-- ** TOP LEVEL **
+-- Creates the production pane that displays
+function production_titlebar.add_to(main_dialog)
+    local flow = main_dialog.add{type="flow", name="flow_production_pane", direction="vertical"}
+
+    -- Production titlebar
+    local table_titlebar = flow.add{type="table", name="table_production_titlebar", column_count=8}
+    table_titlebar.style.bottom_margin = 8
+
+
+    -- Refresh button
+    local button_refresh = table_titlebar.add{type="sprite-button", name="fp_sprite-button_refresh_production",
+      sprite="utility/refresh", style="fp_sprite_button", tooltip={"fp.refresh_production"}}
+    button_refresh.style.width = 22
+    button_refresh.style.height = 22
+    button_refresh.style.left_margin = 8
+
+
+    -- Title
+    local title = table_titlebar.add{type="label", name="label_production_pane_title",
+      caption={"", "  ", {"fp.production"}, " "}}
+    title.style.font = "fp-font-20p"
+    title.style.top_padding = 2
+    title.style.left_margin = 0
+
+
+    -- Navigation
+    local label_level = table_titlebar.add{type="label", name="label_production_titlebar_level", caption=""}
+    label_level.style.font = "fp-font-bold-15p"
+    label_level.style.top_padding = 4
+    label_level.style.left_padding = 10
+
+    local table_navigation = table_titlebar.add{type="table", name="table_production_titlebar_navigation", column_count=2}
+    table_navigation.add{type="button", name="fp_button_floor_up", caption={"fp.go_up"},
+      style="fp_button_mini", mouse_button_filter={"left"}}
+    table_navigation.add{type="button", name="fp_button_floor_top", caption={"fp.to_the_top"},
+      style="fp_button_mini", mouse_button_filter={"left"}}
+
+
+    -- Spacer
+    local spacer = table_titlebar.add{type="flow", name="flow_spacer", direction="horizontal"}
+    spacer.style.horizontally_stretchable = true
+
+
+    -- TopLevelItem-amount toggle
+    table_titlebar.add{type="button", name="fp_button_item_amount_toggle", caption={"fp.item_amount_toggle"},
+      tooltip={"fp.item_amount_toggle_tt"}, mouse_button_filter={"left"}}
+
+
+    -- Matrix solver buttons
+    local flow_matrix_solver = table_titlebar.add{type="table", name="table_production_titlebar_matrix_solver",
+      column_count=2}
+    flow_matrix_solver.style.horizontal_spacing = 0
+    flow_matrix_solver.style.margin = {0, 12}
+
+    flow_matrix_solver.add{type="button", name="fp_button_matrix_solver_toggle",
+      caption="Matrix solver", tooltip="", mouse_button_filter={"left"}}
+
+    local button_matrix_dialog = flow_matrix_solver.add{type="button", name="fp_button_matrix_solver_dialog",
+      caption="[img=utility/enter]", tooltip="", mouse_button_filter={"left"}}
+    button_matrix_dialog.style.width = 28
+    button_matrix_dialog.style.padding = 0
+
+
+    -- View selection
+    local table_view_selection = table_titlebar.add{type="table", name="table_production_titlebar_view_selection",
+      column_count=3}
+    table_view_selection.style.horizontal_spacing = 0
+
+    -- Captions will be set appropriately at runtime
+    table_view_selection.add{type="button", name="fp_button_production_titlebar_view_items_per_timescale",
+      mouse_button_filter={"left"}}  -- (The tooltip for this is set dynamically)
+
+    table_view_selection.add{type="button", name="fp_button_production_titlebar_view_belts_or_lanes",
+      mouse_button_filter={"left"}}  -- (The tooltip for this is set dynamically)
+
+    table_view_selection.add{type="button", name="fp_button_production_titlebar_view_items_per_second_per_machine",
+      tooltip={"", {"fp.items_per_second_per_machine"}, "\n", {"fp.cycle_production_views"}},
+      mouse_button_filter={"left"}}
+
+
+    -- Info label
+    local info = flow.add{type="label", name="label_production_info",
+      caption={"", "   (",  {"fp.production_info"}, ")"}}
+    info.visible = false
+
+
+    -- Main production pane
+    local scroll_pane = flow.add{type="scroll-pane", name="scroll-pane_production_pane", direction="vertical"}
+    scroll_pane.style.left_margin = 4
+    scroll_pane.style.right_margin = -4
+    scroll_pane.style.extra_left_margin_when_activated = -4
+    scroll_pane.style.extra_top_margin_when_activated = -4
+    scroll_pane.style.horizontally_stretchable = true
+    scroll_pane.style.vertically_squashable = true
+
+    production_titlebar.refresh(game.get_player(main_dialog.player_index))
+end
+
+-- Refreshes the production pane (titlebar + table)
+function production_titlebar.refresh(player)
+    local frame_main_dialog = player.gui.screen["fp_frame_main_dialog"]
+    -- Cuts function short if the approriate GUI's haven't been initialized yet
+    if not (frame_main_dialog and frame_main_dialog["flow_production_pane"]) then return end
+
+    local player_table = get_table(player)
+    local ui_state = player_table.ui_state
+    local subfactory = ui_state.context.subfactory
+
+    local table_titlebar = frame_main_dialog["flow_production_pane"]["table_production_titlebar"]
+    local table_view = table_titlebar["table_production_titlebar_view_selection"]
+    -- Only show the titlebar if a valid subfactory is shown
+    table_titlebar.visible = (subfactory ~= nil and subfactory.valid)
+
+    -- Configure Floor labels and buttons
+    if subfactory ~= nil and subfactory.valid then
+        local floor = ui_state.context.floor
+
+        -- Refresh button
+        local button_refresh = table_titlebar["fp_sprite-button_refresh_production"]
+        button_refresh.visible = (floor.Line.count > 0)
+
+        -- Level indicator
+        local label_level = table_titlebar["label_production_titlebar_level"]
+        label_level.caption = {"", {"fp.level"}, " ", floor.level, "  "}
+        label_level.visible = (floor.Line.count > 0)
+
+        -- Navigation
+        local table_navigation = table_titlebar["table_production_titlebar_navigation"]
+        table_navigation["fp_button_floor_up"].visible = (floor.level > 1)
+        table_navigation["fp_button_floor_top"].visible = (floor.level > 2)
+
+        -- TopLevelItem-amount toggle
+        table_titlebar["fp_button_item_amount_toggle"].visible = (floor.level > 1)
+
+        -- Matrix solver buttons
+        local matrix_enabled = (subfactory.matrix_free_items ~= nil)
+        local table_solver = table_titlebar["table_production_titlebar_matrix_solver"]
+        table_solver["fp_button_matrix_solver_toggle"].style = matrix_enabled and "fp_button_selected" or "button"
+        table_solver["fp_button_matrix_solver_dialog"].enabled = matrix_enabled
+
+        -- Update the dynamic parts of the view state buttons
+        local state_existed = (ui_state.view_state ~= nil)
+        refresh_view_state(player, subfactory)
+
+        -- Refresh subfactory pane to update it with the selected state
+        if not state_existed then subfactory_pane.refresh(player) end
+
+        for _, view in ipairs(ui_state.view_state) do
+            local button = table_view["fp_button_production_titlebar_view_" .. view.name]
+            button.caption = view.caption
+
+            -- Update the tooltip based on current settings
+            -- The "items_per_second_per_machine"-tooltip doesn't need to be updated according to any settings
+            if view.name == "items_per_timescale" then
+                local timescale = ui_util.format_timescale(subfactory.timescale, true, true)
+                button.tooltip = {"", {"fp.items_per_timescale"}, " ", timescale, ".",
+                  "\n", {"fp.cycle_production_views"}}
+            elseif view.name == "belts_or_lanes" then
+                local belts_lanes_label = (player_table.settings.belts_or_lanes == "belts")
+                  and {"fp.belts"} or {"fp.lanes"}
+                button.tooltip = {"", {"fp.belts_or_lanes", belts_lanes_label}, "\n", {"fp.cycle_production_views"}}
+            end
+
+            -- It's disabled if it's selected or not enabled by the view
+            button.enabled = (not view.selected and view.enabled)
+            button.style = view.selected and "fp_view_selection_button_selected" or "fp_view_selection_button"
+        end
+    end
+
+    production_table.refresh(player)
+end
+
+
+-- Handles a click on a button that changes the viewed floor of a subfactory
+function production_titlebar.handle_floor_change_click(player, destination)
+    local ui_state = get_ui_state(player)
+    local subfactory = ui_state.context.subfactory
+    local floor = ui_state.context.floor
+
+    if subfactory == nil or floor == nil then return end
+
+    local selected_floor = nil
+    if destination == "up" and floor.level > 1 then
+        selected_floor = floor.origin_line.parent
+    elseif destination == "top" then
+        selected_floor = Subfactory.get(subfactory, "Floor", 1)
+    end
+
+    -- Only need to refresh if the floor was indeed changed
+    if selected_floor ~= nil then
+        ui_util.context.set_floor(player, selected_floor)
+
+        -- Remove floor if no recipes have been added to it
+        Floor.delete_empty(floor)
+
+        ui_state.current_activity = nil
+        calculation.update(player, subfactory, true)
+    end
+end
+
+
+-- Toggles the button-style and ui_state of floor_total
+function production_titlebar.toggle_floor_total_display(player, button)
+    local flags = get_flags(player)
+
+    if button.style.name == "button" then
+        flags.floor_total = true
+        button.style = "fp_button_selected"
+    else
+        flags.floor_total = false
+        button.style = "button"
+    end
+
+    main_dialog.refresh(player)
+end
+
+-- Toggles between both of the solvers
+function toggle_solvers(player, button)
+    local ui_state = get_ui_state(player)
+    local subfactory = ui_state.context.subfactory
+
+    if subfactory.matrix_free_items == nil then
+        subfactory.matrix_free_items = {}
+        button.style = "fp_button_selected"
+        button.parent["fp_button_matrix_solver_dialog"].enabled = true
+    else
+        subfactory.matrix_free_items = nil
+        button.style = "button"
+        button.parent["fp_button_matrix_solver_dialog"].enabled = false
+
+        -- Remove any byproducts recipes as they don't work with the base solver
+        -- TODO NEEDS TESTING
+        for _, floor in pairs(Subfactory.get_in_order(subfactory, "Floor")) do
+            for _, line in pairs(Floor.get_in_order(floor, "Line")) do
+                if line.recipe.production_type == "consume" then
+                    Floor.remove(floor, line)
+                end
+            end
+        end
+    end
+
+    ui_state.current_activity = nil
+    calculation.update(player, subfactory, true)
+end
+
+
 -- Sets the current view to the given view (If no view if provided, it sets it to the next enabled one)
-function change_view_state(player, view_name)
+function production_titlebar.change_view_state(player, view_name)
     local ui_state = get_ui_state(player)
 
     -- Return if table_view_selection does not exist yet (this is really crappy and ugly)
-    local main_dialog = player.gui.screen["fp_frame_main_dialog"]
-    if not main_dialog or not main_dialog.visible then return end
-    local table_titlebar = main_dialog["flow_production_pane"]["table_production_titlebar"]
-    if not (main_dialog["flow_production_pane"] and main_dialog["flow_production_pane"]["table_production_titlebar"]
-     and table_titlebar["table_production_titlebar_view_selection"]) then return end
+    local frame_main_dialog = player.gui.screen["fp_frame_main_dialog"]
+    if not frame_main_dialog or not frame_main_dialog.visible then return end
+    local table_titlebar = frame_main_dialog["flow_production_pane"]["table_production_titlebar"]
+    if not (frame_main_dialog["flow_production_pane"] and frame_main_dialog["flow_production_pane"]
+      ["table_production_titlebar"] and table_titlebar["table_production_titlebar_view_selection"]) then return end
 
     -- Only change the view_state if it exists and is visible
     if ui_state.view_state ~= nil and table_titlebar.visible then
@@ -315,20 +335,5 @@ function change_view_state(player, view_name)
         correct_view_state(ui_state.view_state, id_to_select)
     end
 
-    refresh_main_dialog(player)
-end
-
--- Moves on the selection until it is on an enabled state (at least 1 view needs to be enabled)
--- (Not useful currently as all views are enabled, but it was in the past)
-function correct_view_state(view_state, id_to_select)
-    while true do
-        view = view_state[id_to_select]
-        if view.enabled then
-            view.selected = true
-            view_state.selected_view = view
-            break
-        else
-            id_to_select = (id_to_select % #view_state) + 1
-        end
-    end
+    main_dialog.refresh(player)
 end

@@ -15,8 +15,7 @@ function structures.aggregate.init(player_index, floor_id)
         uncapped_production_ratio = nil,
         Product = structures.class.init(),
         Byproduct = structures.class.init(),
-        Ingredient = structures.class.init(),
-        Fuel = structures.class.init()
+        Ingredient = structures.class.init()
     }
 end
 
@@ -27,17 +26,6 @@ end
 
 function structures.aggregate.subtract(aggregate, class_name, item, amount)
     structures.class.add(aggregate[class_name], item, -(amount or item.amount))
-end
-
--- Adds all the elements of the secondary class to the main one (modifies the aggregate!)
-function structures.aggregate.combine_classes(aggregate, main_class_name, secondary_class_name)
-    for type, items_of_type in pairs(aggregate[secondary_class_name]) do
-        for name, amount in pairs(items_of_type) do
-            local item = {type=type, name=name, amount=amount}
-            structures.aggregate.add(aggregate, main_class_name, item)
-            items_of_type[name] = nil
-        end
-    end
 end
 
 -- Adds the first given aggregate to the second
@@ -66,8 +54,8 @@ end
 function structures.class.add(class, item, amount)
     local type = (item.proto ~= nil) and item.proto.type or item.type
     local name = (item.proto ~= nil) and item.proto.name or item.name
-    local amount = amount or (item.required_amount or item.amount)
-    
+    amount = amount or (item.required_amount or item.amount)
+
     local type_table = class[type]
     type_table[name] = (type_table[name] or 0) + amount
     if type_table[name] == 0 then type_table[name] = nil end
@@ -75,6 +63,26 @@ end
 
 function structures.class.subtract(class, item, amount)
     structures.class.add(class, item, -(amount or item.amount))
+end
+
+-- Puts the items into their destination-class in the given aggregate, stopping for balancing
+-- at the depot-class (Naming is hard, and that explanation is crap)
+function structures.class.balance_items(class, aggregate, depot, destination)
+    for _, item in ipairs(structures.class.to_array(class)) do
+        local depot_amount = aggregate[depot][item.type][item.name]
+
+        if depot_amount ~= nil then  -- Use up depot items, if available
+            if depot_amount >= item.amount then
+                structures.aggregate.subtract(aggregate, depot, item)
+            else
+                structures.aggregate.subtract(aggregate, depot, item, depot_amount)
+                structures.aggregate.add(aggregate, destination, item, (item.amount - depot_amount))
+            end
+
+        else  -- add to destination if this item is not present in the depot
+            structures.aggregate.add(aggregate, destination, item)
+        end
+    end
 end
 
 -- Returns an array that contains every item in the given data structure

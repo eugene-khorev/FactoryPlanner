@@ -110,41 +110,6 @@ function Subfactory.remove_useless_lines(self)
 end
 
 
--- Returns the combination of both item collections in GUI order, as a deepcopy
--- (More of a util function, 'self' isn't really needed here)
-function Subfactory.combine_item_collections(self, primary_items, secondary_items)
-    local combination = Collection.init()
-    local touched_datasets = {}
-
-    local function create_item_copy(dataset)
-        return {
-            id = dataset.id,
-            proto = dataset.proto,  -- reference
-            amount = dataset.amount
-        }
-    end
-    
-    -- First, go through all primary items and combine them with any identical secondary ones
-    for _, dataset in ipairs(Collection.get_in_order(primary_items)) do
-        local primary_item = Collection.add(combination, create_item_copy(dataset))
-        local secondary_item = Collection.get_by_name(secondary_items, dataset.proto.name)
-        if secondary_item ~= nil then
-            primary_item.amount = primary_item.amount + secondary_item.amount
-            touched_datasets[secondary_item.proto.name] = true
-        end
-    end
-    
-    -- Then, add all remaining secondary items on their own
-    for _, dataset in ipairs(Collection.get_in_order(secondary_items)) do
-        if touched_datasets[dataset.proto.name] == nil then
-            Collection.add(combination, create_item_copy(dataset))
-        end
-    end
-
-    return combination
-end
-
-
 -- Returns the machines and modules needed to actually build this subfactory
 function Subfactory.get_component_data(self)
     local components = {machines={}, modules={}}
@@ -158,14 +123,29 @@ function Subfactory.get_component_data(self)
 end
 
 
+-- Updates every top level product of this Subfactory to the given product definition type
+function Subfactory.update_product_definitions(self, new_defined_by)
+    for _, product in pairs(Subfactory.get_in_order(self, "Product")) do
+        local req_amount = product.required_amount
+        local current_defined_by = req_amount.defined_by
+        if current_defined_by ~= "amount" and new_defined_by ~= current_defined_by then
+            req_amount.defined_by = new_defined_by
+
+            local multiplier = (new_defined_by == "belts") and 0.5 or 2
+            req_amount.amount = req_amount.amount * multiplier
+        end
+    end
+end
+
+
 -- Updates the validity of the whole subfactory
 -- Floors can be checked in any order and separately without problem
 function Subfactory.update_validity(self)
     local classes = {Product = "Item", Byproduct = "Item", Ingredient = "Item", Floor = "Floor"}
-    self.valid = data_util.run_validation_updates(self, classes)
+    self.valid = run_validation_updates(self, classes)
 
     -- Silently update matrix_free_items, removing any invalid prototype references
-    if self.matrix_free_items ~= nil then
+    if self.valid and self.matrix_free_items ~= nil then
         for index, proto in pairs(self.matrix_free_items) do
             local new_type_id = new.all_items.map[proto.type]
             if new_type_id == nil then
@@ -189,8 +169,8 @@ end
 -- (In general, Subfactory Items are not repairable and can only be deleted)
 function Subfactory.attempt_repair(self, player)
     local classes = {Product = "Item", Byproduct = "Item", Ingredient = "Item"}
-    data_util.run_invalid_dataset_repair(player, self, classes)
-    
+    run_invalid_dataset_repair(player, self, classes)
+
     -- Set selected floor to the top one in case the selected one gets deleted
     Floor.delete_empty(self.selected_floor)
     local top_floor = Subfactory.get(self, "Floor", 1)
@@ -200,6 +180,6 @@ function Subfactory.attempt_repair(self, player)
     -- Floor repair is called on the top floor, which recursively goes through its subfloors
     -- (Return value is not caught here because the top level floor won't be removed)
     Floor.attempt_repair(top_floor, player)
-    
+
     self.valid = true
 end

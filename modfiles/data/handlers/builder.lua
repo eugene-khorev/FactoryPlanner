@@ -1,11 +1,31 @@
 -- Contains the methods and definitions to generate subfactories by code
-constructor = {}
+builder = {}
 
+-- ** LOCAL UTIL **
 -- Following are a couple helper functions for populating (sub)factories
 -- Adds all given products to the given subfactory (table definition see above)
-local function add_products(subfactory, products)
+local function add_products(player, subfactory, products)
     for _, product in ipairs(products) do
-        local item = Item.init_by_item(product, "Product", 0, (product.required_amount or 0))
+        -- Amounts will depend on the value of the belts/lanes-setting
+        local req_amount = {
+            defined_by = product.defined_by,
+            amount = product.amount
+        }
+
+        -- The timescale is implicitly the one defined for the subfactory
+        if product.defined_by ~= "amount" then
+            -- Convert definitions by belt to lanes if necessary
+            if get_settings(player).belts_or_lanes == "lanes" then
+                req_amount.defined_by = "lanes"
+                req_amount.amount = req_amount.amount * 2
+            end
+
+            local belt_proto = global.all_belts.belts[global.all_belts.map[product.belt_name]]
+            req_amount.belt_proto = belt_proto
+        end
+
+        local prod = {name=product.name, type=product.type}
+        local item = Item.init_by_item(prod, "Product", 0, req_amount)
         Subfactory.add(subfactory, item)
     end
 end
@@ -55,7 +75,7 @@ local function construct_floor(player, floor, recipes)
 
         return line
     end
-    
+
     for _, recipe_data in ipairs(recipes) do
         if #recipe_data == 0 then  -- Meaning this isn't a whole subfloor
             add_line(recipe_data)
@@ -64,7 +84,7 @@ local function construct_floor(player, floor, recipes)
             local line = add_line(recipe_data[1])
             local subfloor = Floor.init(line)
             line.subfloor = Subfactory.add(floor.parent, subfloor)
-            
+
             -- Then, it creates a subfloor with the remaining recipes
             table.remove(recipe_data, 1)
             construct_floor(player, line.subfloor, recipe_data)
@@ -73,8 +93,9 @@ local function construct_floor(player, floor, recipes)
 end
 
 
+-- ** TOP LEVEL **
 -- Initiates the data table with some values for development purposes
-function constructor.dev_config(player)
+function builder.dev_config(player)
     if devmode then
         get_preferences(player).tutorial_mode = false
 
@@ -92,31 +113,37 @@ function constructor.dev_config(player)
             {
                 name = "electronic-circuit",
                 type = "item",
-                required_amount = 400
+                defined_by = "amount",
+                amount = 400
             },
             {
                 name = "uranium-235",
                 type = "item",
-                required_amount = 10
+                defined_by = "amount",
+                amount = 10
             },
             {
                 name = "iron-ore",
                 type = "item",
-                required_amount = 100
+                defined_by = "belts",
+                amount = 0.5,
+                belt_name = "transport-belt"
             },
             {
                 name = "light-oil",
                 type = "fluid",
-                required_amount = 250
+                defined_by = "amount",
+                amount = 250
             },
             {
                 name = "steam",
                 type = "fluid",
-                required_amount = 1000
+                defined_by = "amount",
+                amount = 1000
             }
         }
-        add_products(subfactory, products)
-        
+        add_products(player, subfactory, products)
+
         -- Floors
         local recipes = {
             {
@@ -128,30 +155,32 @@ function constructor.dev_config(player)
     end
 end
 
+
 -- Adds an example subfactory for new users to explore (returns that subfactory)
-function constructor.example_subfactory(player)
+function builder.example_subfactory(player)
     local player_table = get_table(player)
     local ui_state = player_table.ui_state
     local factory = player_table.factory
-    
+
     -- Always add the example subfactory as a non-archived one
-    local subfactory = Factory.add(factory, Subfactory.init("Example", 
+    local subfactory = Factory.add(factory, Subfactory.init("Example",
       {type="item", name="production-science-pack"}, "one_minute"))
     factory.selected_subfactory = subfactory
     ui_util.context.set_factory(player, factory)
     ui_state.flags.archive_open = false
-    
+
     -- Products
     local products = {
         {
             name = "production-science-pack",
             type = "item",
-            required_amount = 180
+            defined_by = "amount",
+            amount = 180
         }
     }
-    add_products(subfactory, products)
-    
-    -- Recipes    
+    add_products(player, subfactory, products)
+
+    -- Recipes
     -- This table describes the desired hierarchical structure of the subfactory
     -- (Order is important; sub-tables represent their own subfloors (recursively))
     local recipes = {
@@ -211,6 +240,6 @@ function constructor.example_subfactory(player)
         }
     }
     construct_floor(player, ui_state.context.floor, recipes)
-    
+
     return subfactory
 end
