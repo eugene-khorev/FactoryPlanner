@@ -1,4 +1,23 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.00.00
+Date: 00. 00. 0000
+  Features:
+    - Subfactories you delete will now remain in the archive for 15 minutes in case you change your mind about deleting them
+    - Added a tooltip to invalid subfactories listing the modset changes that could have lead to it becoming invalid
+  Changes:
+    -
+  Bugfixes:
+    - Fixed that you could enable/disable the matrix solver while a subfactory is in archive
+    - Fixed that the indicated timescale-view button would not update correctly when switching between subfactories
+
+---------------------------------------------------------------------------------------------------
+Version: 1.1.11
+Date: 19. 12. 2020
+  Bugfixes:
+    - Fixed machine count totals on lines with subfloors with the matrix solver
+    - Fixed an issue with the matrix solver determining the number of rows and columns in its matrix
+
+---------------------------------------------------------------------------------------------------
 Version: 1.1.10
 Date: 17. 12. 2020
   Changes:
