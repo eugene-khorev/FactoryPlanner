@@ -4,11 +4,13 @@ Date: 00. 00. 0000
   Features:
     - Subfactories you delete will now remain in the archive for 15 minutes in case you change your mind about deleting them
     - Added a tooltip to invalid subfactories listing the modset changes that could have lead to it becoming invalid
+    - You can now alt-click the recipe line toggle switch (which is an optional column in preferences) to toggle all the other recipe lines, meaning all the ones you did not click on (thanks METAKOT!)
   Changes:
     -
   Bugfixes:
     - Fixed that you could enable/disable the matrix solver while a subfactory is in archive
     - Fixed that the indicated timescale-view button would not update correctly when switching between subfactories
+    - Fixed that setting the subfactory icon to '?' would crash (you can't use the question mark as an icon now)
 
 ---------------------------------------------------------------------------------------------------
 Version: 1.1.11
@@ -27,6 +29,7 @@ Date: 17. 12. 2020
     - Fixed that alt-adding a subfactory would crash if you had no other subfactories
     - Fixed that you couldn't view subfloors for subfactories that are in the archive
     - Fixed a crash when changing the window size while a modal dialog is open
+    - Tried fixing a crash with the matrix solver in rare circumstances
 
 ---------------------------------------------------------------------------------------------------
 Version: 1.1.9
