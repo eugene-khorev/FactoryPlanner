@@ -54,6 +54,7 @@ local function reload_preferences(player)
     preferences.round_button_numbers = preferences.round_button_numbers or false
 
     preferences.toggle_column = preferences.toggle_column or false
+    preferences.done_column = preferences.done_column or false
     preferences.pollution_column = preferences.pollution_column or false
     preferences.line_comment_column = preferences.line_comment_column or false
 
@@ -64,6 +65,7 @@ local function reload_preferences(player)
     preferences.default_prototypes = {
         belts = preferences.default_prototypes.belts or prototyper.defaults.get_fallback("belts"),
         beacons = preferences.default_prototypes.beacons or prototyper.defaults.get_fallback("beacons"),
+        wagons = preferences.default_prototypes.wagons or prototyper.defaults.get_fallback("wagons"),
         fuels = preferences.default_prototypes.fuels or prototyper.defaults.get_fallback("fuels"),
         machines = preferences.default_prototypes.machines or prototyper.defaults.get_fallback("machines")
     }

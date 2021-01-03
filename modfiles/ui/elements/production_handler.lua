@@ -50,6 +50,16 @@ local function handle_toggle_click(player, checkbox, metadata)
     main_dialog.refresh(player, "subfactory")
 end
 
+local function handle_done_click(player, button)
+    local line_id = tonumber(string.match(button.name, "%d+"))
+    local line = Floor.get(data_util.get("context", player).floor, "Line", line_id)
+    local relevant_line = (line.subfloor) and line.subfloor.defining_line or line
+    relevant_line.done = not relevant_line.done
+
+    -- Refreshing the whole table here is wasteful, but I don't have good selective refreshing yet
+    main_dialog.refresh(player, "production_table")
+end
+
 local function handle_recipe_click(player, button, metadata)
     local line_id = tonumber(string.match(button.name, "%d+"))
     local context = data_util.get("context", player)
@@ -183,7 +193,7 @@ local function apply_machine_choice(player, machine_id, metadata)
 end
 
 local function machine_limit_change(modal_data, textfield)
-    local switch = modal_data.modal_elements["fp_switch_on_off_options_hard_limit"]
+    local switch = modal_data.modal_elements["fp_switch_on_off_options_force_limit"]
     local machine_limit = tonumber(textfield.text)
 
     -- If it goes from empty to filled, reset a possible previous switch state
@@ -204,8 +214,8 @@ local function apply_machine_options(player, options, action)
         local ui_state = data_util.get("ui_state", player)
         local machine = ui_state.modal_data.object
 
-        if options.machine_limit == nil then options.hard_limit = false end
-        machine.limit, machine.hard_limit = options.machine_limit, options.hard_limit
+        if options.machine_limit == nil then options.force_limit = false end
+        machine.limit, machine.force_limit = options.machine_limit, options.force_limit
 
         calculation.update(player, ui_state.context.subfactory)
         main_dialog.refresh(player, "subfactory")
@@ -230,75 +240,76 @@ local function handle_machine_click(player, button, metadata)
             main_dialog.refresh(player, "subfactory")
         end
 
-    elseif metadata.alt then
-        if metadata.click == "right" then  -- resets this machine to its default state
-            Line.change_machine(line, player, nil, nil)
-            line.machine.limit = nil
-            line.machine.hard_limit = false
-
-            calculation.update(player, context.subfactory)
-            main_dialog.refresh(player, "subfactory")
-
-        elseif metadata.click == "left" then
+    elseif metadata.click == "left" then
+        if metadata.alt then  -- set cursor to the current machine
             local module_list = {}
             for _, module in pairs(Machine.get_in_order(line.machine, "Module")) do
                 module_list[module.proto.name] = module.amount
             end
-
             set_cursor_blueprint(player, line.machine.proto.name, module_list, line.recipe.proto.name)
-        end
 
-    elseif metadata.click == "left" then
-        local machine_category_id = global.all_machines.map[line.machine.proto.category]
-        local category_prototypes = global.all_machines.categories[machine_category_id].machines
+        else  -- open the machine chooser
+            local machine_category_id = global.all_machines.map[line.machine.proto.category]
+            local category_prototypes = global.all_machines.categories[machine_category_id].machines
 
-        local applicable_prototypes = {}  -- determine whether there's more than one machine for this recipe
-        for _, machine_proto in ipairs(category_prototypes) do
-            if Line.is_machine_applicable(line, machine_proto) then
-                table.insert(applicable_prototypes, machine_proto)
+            local applicable_prototypes = {}  -- determine whether there's more than one machine for this recipe
+            for _, machine_proto in ipairs(category_prototypes) do
+                if Line.is_machine_applicable(line, machine_proto) then
+                    table.insert(applicable_prototypes, machine_proto)
+                end
+            end
+
+            if #applicable_prototypes <= 1 then  -- changing machines only makes sense if there is something to change to
+                title_bar.enqueue_message(player, {"fp.warning_no_other_machine_choice"}, "warning", 1, true)
+            else
+                local modal_data = {
+                    title = {"fp.pl_machine", 1},
+                    text = {"fp.chooser_machine", line.recipe.proto.localised_name},
+                    text_tooltip = {"fp.chooser_machine_tt"},
+                    click_handler = apply_machine_choice,
+                    button_definitions = compile_machine_chooser_buttons(player, line, applicable_prototypes),
+                    object = line.machine
+                }
+                modal_dialog.enter(player, {type="chooser", modal_data=modal_data})
             end
         end
 
-        if #applicable_prototypes <= 1 then  -- changing machines only makes sense if there is something to change to
-            title_bar.enqueue_message(player, {"fp.warning_no_other_machine_choice"}, "warning", 1, true)
-        else
-            local modal_data = {
-                title = {"fp.pl_machine", 1},
-                text = {"fp.chooser_machine", line.recipe.proto.localised_name},
-                text_tooltip = {"fp.chooser_machine_tt"},
-                click_handler = apply_machine_choice,
-                button_definitions = compile_machine_chooser_buttons(player, line, applicable_prototypes),
-                object = line.machine
-            }
-            modal_dialog.enter(player, {type="chooser", modal_data=modal_data})
-        end
+    elseif metadata.click == "right" then
+        if metadata.control then  -- reset this machine to its default state
+            Line.change_machine(line, player, nil, nil)
+            line.machine.limit = nil
+            line.machine.force_limit = false
 
-    elseif metadata.click == "right" and context.subfactory.matrix_free_items == nil then
-        local modal_data = {
-            title = {"fp.options_machine_title"},
-            text = {"fp.options_machine_text", line.machine.proto.localised_name},
-            submission_handler = apply_machine_options,
-            object = line.machine,
-            fields = {
-                {
-                    type = "numeric_textfield",
-                    name = "machine_limit",
-                    change_handler = machine_limit_change,
-                    caption = {"fp.options_machine_limit"},
-                    tooltip = {"fp.options_machine_limit_tt"},
-                    text = line.machine.limit,  -- can be nil
-                    focus = true
-                },
-                {
-                    type = "on_off_switch",
-                    name = "hard_limit",
-                    caption = {"fp.options_machine_hard_limit"},
-                    tooltip = {"fp.options_machine_hard_limit_tt"},
-                    state = line.machine.hard_limit or false
+            calculation.update(player, context.subfactory)
+            main_dialog.refresh(player, "subfactory")
+
+        elseif context.subfactory.matrix_free_items == nil then  -- open the machine options
+            local modal_data = {
+                title = {"fp.options_machine_title"},
+                text = {"fp.options_machine_text", line.machine.proto.localised_name},
+                submission_handler = apply_machine_options,
+                object = line.machine,
+                fields = {
+                    {
+                        type = "numeric_textfield",
+                        name = "machine_limit",
+                        change_handler = machine_limit_change,
+                        caption = {"fp.options_machine_limit"},
+                        tooltip = {"fp.options_machine_limit_tt"},
+                        text = line.machine.limit,  -- can be nil
+                        focus = true
+                    },
+                    {
+                        type = "on_off_switch",
+                        name = "force_limit",
+                        caption = {"fp.options_machine_force_limit"},
+                        tooltip = {"fp.options_machine_force_limit_tt"},
+                        state = line.machine.force_limit or false
+                    }
                 }
             }
-        }
-        modal_dialog.enter(player, {type="options", modal_data=modal_data})
+            modal_dialog.enter(player, {type="options", modal_data=modal_data})
+        end
     end
 end
 
@@ -458,9 +469,9 @@ local function compile_fuel_chooser_buttons(player, line, applicable_prototypes)
 
     for _, fuel_proto in pairs(applicable_prototypes) do
         local raw_fuel_amount = calculation.util.determine_fuel_amount(energy_consumption, line.machine.proto.burner,
-        fuel_proto.fuel_value, timescale)
+          fuel_proto.fuel_value, timescale)
         local amount, number_tooltip = view_state_metadata.processor(view_state_metadata, raw_fuel_amount,
-        fuel_proto.type, line.machine.count)  -- Raw processor call because we only have a prototype, no object
+          fuel_proto.type, line.machine.count)  -- Raw processor call because we only have a prototype, no object
 
         local category_id = global.all_fuels.map[fuel_proto.category]
         local definition = {
@@ -470,7 +481,7 @@ local function compile_fuel_chooser_buttons(player, line, applicable_prototypes)
             localised_name = fuel_proto.localised_name,
             amount_line = number_tooltip or "",
             tooltip_appendage = data_util.get_attributes("fuels", fuel_proto),
-            selected = (current_proto.type == fuel_proto.type and current_proto.id == fuel_proto.id)
+            selected = (current_proto.category == fuel_proto.category and current_proto.id == fuel_proto.id)
         }
         table.insert(button_definitions, definition)
     end
@@ -511,11 +522,11 @@ local function handle_fuel_click(player, button, metadata)
         -- Applicable fuels come from all categories that this burner supports
         for category_name, _ in pairs(line.machine.proto.burner.categories) do
             local category_id = global.all_fuels.map[category_name]
-			if category_id ~= nil then
+            if category_id ~= nil then
                 for _, fuel_proto in pairs(global.all_fuels.categories[category_id].fuels) do
-            	    table.insert(applicable_prototypes, fuel_proto)
+                    table.insert(applicable_prototypes, fuel_proto)
                 end
-			end
+            end
         end
 
         local modal_data = {
@@ -577,6 +588,10 @@ production_handler.gui_events = {
         {
             pattern = "^fp_checkbox_production_toggle_%d+$",
             handler = handle_toggle_click
+        },
+        {
+            pattern = "^fp_button_production_done_%d+$",
+            handler = handle_done_click
         }
     },
     on_gui_text_changed = {
