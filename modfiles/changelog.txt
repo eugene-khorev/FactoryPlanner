@@ -2,11 +2,21 @@
 Version: 0.00.00
 Date: 00. 00. 0000
   Features:
-    - 
+    - You can now queue handcrafting machines and modules from the utility dialog
   Changes:
-    - 
+    - Made the utility dialog more consistent when checking whether logistic robotics are researched in modded situations
   Bugfixes:
-    - 
+    -
+
+---------------------------------------------------------------------------------------------------
+Version: 1.1.16
+Date: 20. 01. 2021
+  Changes:
+    - Swapped the import/export button around and made their tooltips clearer
+  Bugfixes:
+    - Fixed a crash with fuel migration
+    - Potentially fixed a crash with certain mods that add custom beacons
+    - Potentially fixed a crash when deleting subfactories on a multiplayer server with high latency
 
 ---------------------------------------------------------------------------------------------------
 Version: 1.1.15
@@ -22,9 +32,9 @@ Date: 03. 01. 2021
     - Added an optional production column that allows you to check off a recipe line after you're done with it, in the style of a to-do list (Thanks Fiona!)
     - Added an additional production view 'Wagons/timescale', allowing you to see how many cargo or fluid wagons are being filled up by your production (Thanks talshorer!)
   Changes:
-    - Fixed various inconsistencies with the UI (thanks Raiguard!)
-    - Updated the Russian translation (thanks METAKOT!)
-    - Updated the Chinese translation (thanks Ph.X!)
+    - Fixed various inconsistencies with the UI (Thanks Raiguard!)
+    - Updated the Russian translation (Thanks METAKOT!)
+    - Updated the Chinese translation (Thanks Ph.X!)
     - Changed the hotkey to reset a machine from alt-right-click to control-right-click, as this is more consistent with the control-right-click action deleting things
     - Renamed the 'hard limit' option on machines to 'force limit'
   Bugfixes:
